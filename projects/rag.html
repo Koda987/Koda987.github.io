@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能知识库问答系统 — Koda</title>
+    <meta name="description" content="基于 LangChain + ChromaDB 的 RAG 知识库问答系统：SSE 流式输出、多会话管理、chunk 参数实验（300/50 实测最优）。">
+    <link rel="icon" type="image/svg+xml" href="../assets/logo.svg">
+    <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<!-- ================= 导航 ================= -->
+<nav class="nav">
+    <div class="nav-inner">
+        <a href="../index.html" class="nav-brand">
+            <img src="../assets/logo.svg" alt="" class="logo-img">
+            Koda
+        </a>
+        <div class="nav-links">
+            <a href="#overview" class="nav-link hide-m">概览</a>
+            <a href="#data" class="nav-link">实验数据</a>
+            <a href="#journey" class="nav-link hide-m">演进</a>
+            <a href="https://github.com/Koda987/rag-knowledge" target="_blank" rel="noopener" class="nav-link">GitHub ↗</a>
+        </div>
+    </div>
+</nav>
+
+<!-- ================= Hero ================= -->
+<header class="hero container" id="top">
+    <img src="../assets/logo.svg" alt="Koda" class="hero-logo">
+    <p class="eyebrow">项目 01 · RAG 应用</p>
+    <h1 style="font-size: clamp(2.4rem, 6.5vw, 4.2rem);">智能知识库问答系统</h1>
+    <p class="sub">上传文档自动入库，语义检索，流式逐字回答。<br>从课程原型出发，独立完成一次完整的工程化演进。</p>
+    <div class="hero-links">
+        <a href="https://github.com/Koda987/rag-knowledge" target="_blank" rel="noopener" class="arrow-link">GitHub 仓库</a>
+        <a href="https://github.com/Koda987/rag-knowledge/blob/main/experiments/results.md" target="_blank" rel="noopener">实验报告</a>
+        <span style="color: var(--text-3); cursor: default;">在线演示 · 部署中</span>
+    </div>
+</header>
+
+<!-- ================= 概览与规格 ================= -->
+<section id="overview" class="section alt reveal">
+    <div class="container">
+        <div class="sec-head">
+            <p class="sec-eyebrow">Overview</p>
+            <h2 class="sec-title">它是什么</h2>
+            <p class="sec-sub">基于 LangChain + ChromaDB 的知识库问答应用。以服装售前客服为示例场景，知识库可替换为任意领域。</p>
+        </div>
+
+        <div class="spec-grid">
+            <div class="spec">
+                <h3>SSE 流式输出全链路</h3>
+                <p>后端逐 token 生成，JSON 包装帧（修复文本含换行拆帧的隐患），前端 ReadableStream 增量渲染。首字延迟从"等整段"降到 1 秒内。</p>
+            </div>
+            <div class="spec">
+                <h3>会话管理</h3>
+                <p>会话摘要接口 + 抽屉式列表：标题自动取首条提问、单条删除、记住上次会话。对话历史按会话持久化，刷新即恢复。</p>
+            </div>
+            <div class="spec">
+                <h3>数据驱动调参</h3>
+                <p>自建 16 题评估集，扫描 6 组 chunk 参数，用 hit@1 / MRR 说话——"参数怎么定"不靠背，靠实验数据。</p>
+            </div>
+            <div class="spec">
+                <h3>排查与修复</h3>
+                <p>定位 async 路由中 Django ORM 的静默失败（保护异常被 except 吞掉数月）；修复 session_id 路径穿越风险，存储层与路由层双重校验。</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ================= 界面 ================= -->
+<section class="section reveal">
+    <div class="container">
+        <div class="sec-head">
+            <p class="sec-eyebrow">Interface</p>
+            <h2 class="sec-title">界面</h2>
+        </div>
+
+        <figure class="shot">
+            <div class="shot-frame">
+                <img src="../assets/shot-chat.png" alt="对话页：流式输出"
+                     onerror="this.remove(); this.closest('.shot-frame').insertAdjacentHTML('afterbegin','<div class=ph><span class=big>💬</span>对话页 · 流式输出<br>待替换截图<br><small>assets/shot-chat.png</small></div>');">
+            </div>
+            <figcaption>对话页 · SSE 流式逐字渲染</figcaption>
+        </figure>
+
+        <figure class="shot">
+            <div class="shot-frame">
+                <img src="../assets/shot-sessions.png" alt="会话列表抽屉"
+                     onerror="this.remove(); this.closest('.shot-frame').insertAdjacentHTML('afterbegin','<div class=ph><span class=big>🗂</span>会话列表抽屉<br>待替换截图<br><small>assets/shot-sessions.png</small></div>');">
+            </div>
+            <figcaption>会话管理 · 列表抽屉，标题自动取首问</figcaption>
+        </figure>
+
+        <figure class="shot">
+            <div class="shot-frame">
+                <img src="../assets/shot-kb.png" alt="知识库管理页"
+                     onerror="this.remove(); this.closest('.shot-frame').insertAdjacentHTML('afterbegin','<div class=ph><span class=big>📊</span>知识库管理页<br>待替换截图<br><small>assets/shot-kb.png</small></div>');">
+            </div>
+            <figcaption>知识库 · 上传去重 + 实时统计</figcaption>
+        </figure>
+    </div>
+</section>
+
+<!-- ================= 黑色数据幕 ================= -->
+<section id="data" class="section dark reveal">
+    <div class="container">
+        <div class="sec-head" style="text-align: center; margin-bottom: clamp(48px, 6vw, 72px);">
+            <p class="sec-eyebrow">Experiment</p>
+            <h2 class="sec-title">数据驱动调参</h2>
+            <p class="sec-sub">chunk 参数扫描实验 · 6 组参数 × 16 题评估集（含大量换述题）</p>
+        </div>
+
+        <div class="stats-row">
+            <div class="stat reveal">
+                <div class="num"><span class="cnt" data-target="69">0</span><em>%</em></div>
+                <div class="cap">最优配置 hit@1<br>（chunk 300 / overlap 50）</div>
+            </div>
+            <div class="stat reveal">
+                <div class="num"><span class="cnt" data-target="7" data-prefix="+">+0</span><em>pp</em></div>
+                <div class="cap">overlap 的量化贡献<br>（62% → 69%）</div>
+            </div>
+            <div class="stat reveal">
+                <div class="num"><span class="cnt" data-target="31">0</span><em>%</em></div>
+                <div class="cap">小块配置跌破随机基线<br>（标签与内容被切散）</div>
+            </div>
+        </div>
+
+        <table class="exp">
+            <thead>
+                <tr><th>chunk_size / overlap</th><th>知识块数</th><th>hit@1</th><th>结论</th></tr>
+            </thead>
+            <tbody>
+                <tr><td class="num">100 / 30</td><td class="num">58</td><td class="num">31%</td><td>主题标签与内容被切散</td></tr>
+                <tr><td class="num">200 / 50</td><td class="num">26</td><td class="num">25%</td><td>同上</td></tr>
+                <tr><td class="num">300 / 0</td><td class="num">15</td><td class="num">62%</td><td>对照组：无重叠</td></tr>
+                <tr class="best"><td class="num">300 / 50<span class="tag-best">最优</span></td><td class="num">15</td><td class="num">69%</td><td>项目采用</td></tr>
+                <tr><td class="num">500 / 50</td><td class="num">9</td><td class="num">31%</td><td>一块混多主题，相似度被稀释</td></tr>
+                <tr><td class="num">800 / 100</td><td class="num">7</td><td class="num">62%</td><td>纯度回升，仍不及 300/50</td></tr>
+            </tbody>
+        </table>
+
+        <p class="exp-conclusion">
+            最优参数从"教程默认值"升级为"实验验证值"。
+            <strong>随机基线为 33%</strong>（3 篇语料），小块配置跌破基线是系统性失败的信号。
+            完整报告见 <a class="exp-link" href="https://github.com/Koda987/rag-knowledge/blob/main/experiments/results.md" target="_blank" rel="noopener">experiments/results.md</a>。
+        </p>
+    </div>
+</section>
+
+<!-- ================= 演进时间线 ================= -->
+<section id="journey" class="section alt reveal">
+    <div class="container">
+        <div class="sec-head">
+            <p class="sec-eyebrow">Journey</p>
+            <h2 class="sec-title">架构演进</h2>
+            <p class="sec-sub">每一步都对应仓库里的真实提交，欢迎翻 git 历史。</p>
+        </div>
+        <div class="timeline">
+            <div class="tl-list">
+                <div class="tl-item">
+                    <div class="tl-title">① Streamlit 快速原型</div>
+                    <div class="tl-desc">一周内验证 RAG 链路可行性：上传 → 切块 → 向量化 → 检索 → 问答</div>
+                </div>
+                <div class="tl-item">
+                    <div class="tl-title">② Django + FastAPI 工程化</div>
+                    <div class="tl-desc">服务层线程安全单例、Swagger 文档、Django Admin、手写设计系统的静态前端三页</div>
+                </div>
+                <div class="tl-item">
+                    <div class="tl-title">③ 架构收敛</div>
+                    <div class="tl-desc">双实现出现"修一分叉漏一方"的维护风险 → 移除原型，统一为单一架构</div>
+                </div>
+                <div class="tl-item">
+                    <div class="tl-title">④ 修复战役</div>
+                    <div class="tl-desc">路由前缀 / CORS 无效组合 / async 路由 ORM 静默失败 / session_id 路径穿越校验——11 个主题化提交</div>
+                </div>
+                <div class="tl-item">
+                    <div class="tl-title">⑤ 实验与数据</div>
+                    <div class="tl-desc">chunk 参数扫描实验 + README 优化记录沉淀，把"参数怎么定"变成自己的数据表</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ================= 尾部 ================= -->
+<section class="section" style="padding-top: 0;">
+    <div class="container" style="text-align: center;">
+        <div class="hero-links">
+            <a href="../index.html" class="arrow-link">返回全部项目</a>
+            <a href="https://github.com/Koda987/rag-knowledge" target="_blank" rel="noopener">GitHub 仓库 ↗</a>
+        </div>
+    </div>
+</section>
+
+<!-- ================= 页脚 ================= -->
+<footer>
+    <div class="container">◈ Koda · 2026 · 用代码和数据说话</div>
+</footer>
+
+<script src="../assets/site.js"></script>
+</body>
+</html>

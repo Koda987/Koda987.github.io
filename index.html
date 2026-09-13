@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Koda — LLM 应用开发 · AI 产品</title>
+    <meta name="description" content="Koda 的作品集：RAG 知识库问答系统——从课程原型到工程化演进，SSE 流式、会话管理、数据驱动调参。">
+    <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<!-- ================= 导航 ================= -->
+<nav class="nav">
+    <div class="nav-inner">
+        <a href="#top" class="nav-brand">
+            <img src="assets/logo.svg" alt="" class="logo-img">
+            Koda
+        </a>
+        <div class="nav-links">
+            <a href="#projects" class="nav-link">项目</a>
+            <a href="#skills" class="nav-link hide-m">技能</a>
+            <a href="#about" class="nav-link">关于</a>
+            <a href="https://github.com/Koda987" target="_blank" rel="noopener" class="nav-link">GitHub ↗</a>
+        </div>
+    </div>
+</nav>
+
+<!-- ================= Hero ================= -->
+<header class="hero container" id="top">
+    <img src="assets/logo.svg" alt="Koda" class="hero-logo">
+    <p class="eyebrow">2027 届 · LLM 应用开发 / AI 产品 · 求职实习中</p>
+    <h1>Koda</h1>
+    <p class="sub">把大模型能力落成能用的产品——从 RAG 检索到流式对话，从架构收敛到数据调参。</p>
+    <div class="hero-links">
+        <a href="#projects" class="arrow-link">查看项目</a>
+        <a href="https://github.com/Koda987" target="_blank" rel="noopener">GitHub ↗</a>
+    </div>
+</header>
+
+<!-- ================= 项目 ================= -->
+<section id="projects" class="section alt reveal">
+    <div class="container-wide">
+        <div class="sec-head">
+            <p class="sec-eyebrow">Projects</p>
+            <h2 class="sec-title">项目</h2>
+            <p class="sec-sub">每个项目从原型到落地，完整过程都在 git 历史里。</p>
+        </div>
+
+        <div class="projects-grid">
+            <!-- 新增项目：复制一张 project-card，再建 projects/<名称>.html 即可 -->
+            <a href="projects/rag.html" class="project-card">
+                <div class="card-cover">
+                    <img src="assets/shot-chat.png" alt="RAG 知识库问答系统"
+                         onerror="this.remove(); this.closest('.card-cover').insertAdjacentHTML('afterbegin','<div class=ph><span class=big>💬</span>项目截图待替换<br><small>assets/shot-chat.png</small></div>');">
+                </div>
+                <div class="card-body">
+                    <h3>智能知识库问答系统</h3>
+                    <p class="desc">基于 LangChain + ChromaDB 的 RAG 应用：SSE 流式输出、多会话管理、数据驱动调参。</p>
+                    <p class="tech">Python · LangChain · FastAPI · ChromaDB · SSE</p>
+                    <span class="go arrow-link">查看详情</span>
+                </div>
+            </a>
+        </div>
+    </div>
+</section>
+
+<!-- ================= 技能 ================= -->
+<section id="skills" class="section reveal">
+    <div class="container">
+        <div class="sec-head">
+            <p class="sec-eyebrow">Skills</p>
+            <h2 class="sec-title">技能</h2>
+        </div>
+
+        <div class="skill-row">
+            <div class="k">LLM 应用</div>
+            <div class="v"><strong>RAG 检索增强</strong><span class="dot">·</span><strong>LangChain</strong><span class="dot">·</span>Prompt 工程<span class="dot">·</span>向量数据库（ChromaDB）<span class="dot">·</span>Embedding 选型与评估<span class="dot">·</span>SSE 流式输出<span class="dot">·</span>大模型 API 集成</div>
+        </div>
+        <div class="skill-row">
+            <div class="k">语言与框架</div>
+            <div class="v"><strong>Python</strong><span class="dot">·</span>FastAPI<span class="dot">·</span>Django<span class="dot">·</span>SQL<span class="dot">·</span>HTML / CSS / JS</div>
+        </div>
+        <div class="skill-row">
+            <div class="k">工具与方法</div>
+            <div class="v"><strong>Git 工作流</strong><span class="dot">·</span><strong>AI 辅助开发</strong><span class="dot">·</span>实验评估<span class="dot">·</span>技术文档写作</div>
+        </div>
+    </div>
+</section>
+
+<!-- ================= 关于 ================= -->
+<section id="about" class="section alt reveal">
+    <div class="container">
+        <div class="sec-head">
+            <p class="sec-eyebrow">About</p>
+            <h2 class="sec-title">关于我</h2>
+        </div>
+        <div class="about-grid">
+            <div class="about-text">
+                <p>大四在读，方向 <strong>LLM 应用开发 / AI 产品</strong>，找实习中。</p>
+                <p>我相信 AI 产品的竞争力藏在落地细节里：检索准不准、回答等不等得住、知识库里没有的内容模型会不会编。我的项目里每一次提交，都在回答其中一个问题。</p>
+                <p>所有优化决策、踩坑记录和实验数据都写在仓库 README 与提交历史里——<strong>欢迎翻 git log，那就是我的学习轨迹。</strong></p>
+            </div>
+            <div class="meta">
+                <div class="meta-row"><span class="k">身份</span><span class="v">2027 届本科</span></div>
+                <div class="meta-row"><span class="k">求职意向</span><span class="v">LLM 应用 / AI 产品 实习</span></div>
+                <div class="meta-row"><span class="k">GitHub</span><span class="v"><a href="https://github.com/Koda987" target="_blank" rel="noopener">github.com/Koda987 ↗</a></span></div>
+                <div class="meta-row"><span class="k">联系方式</span><span class="v">见简历</span></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ================= 页脚 ================= -->
+<footer>
+    <div class="container">◈ Koda · 2026 · 用代码和数据说话</div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>
