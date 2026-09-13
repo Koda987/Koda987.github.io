@@ -55,7 +55,7 @@
         });
     }
 
-    /* ---------- 3. 截图轻视差（滚动时缓慢漂移，制造纵深） ---------- */
+    /* ---------- 3. 截图 3D 视差（滚动时漂移 + 轻微透视俯仰） ---------- */
     var shots = document.querySelectorAll('.shot-frame');
     if (shots.length && !reduced) {
         var ticking = false;
@@ -65,7 +65,9 @@
                 var r = f.getBoundingClientRect();
                 var mid = (r.top + r.bottom) / 2;
                 var off = (mid - vh / 2) / vh;      // 元素中心偏离视口中心的比例
-                f.style.transform = 'translateY(' + (off * -14).toFixed(1) + 'px)';
+                f.style.transform =
+                    'perspective(1000px) translateY(' + (off * -14).toFixed(1) + 'px)' +
+                    ' rotateX(' + (off * 2.4).toFixed(2) + 'deg)';
             });
             ticking = false;
         }
@@ -73,5 +75,30 @@
             if (!ticking) { ticking = true; requestAnimationFrame(update); }
         }, { passive: true });
         update();
+    }
+
+    /* ---------- 4. 项目卡 3D 倾斜 + 光泽跟随（仅鼠标等精确指针设备） ---------- */
+    var fine = window.matchMedia('(pointer: fine)').matches;
+    if (fine && !reduced) {
+        document.querySelectorAll('.project-card').forEach(function (card) {
+            var raf = null;
+            card.addEventListener('pointermove', function (e) {
+                if (raf) return;
+                raf = requestAnimationFrame(function () {
+                    var r = card.getBoundingClientRect();
+                    var x = (e.clientX - r.left) / r.width;    // 0 ~ 1 横向位置
+                    var y = (e.clientY - r.top) / r.height;    // 0 ~ 1 纵向位置
+                    card.style.setProperty('--ry', ((x - 0.5) * 8).toFixed(2) + 'deg');
+                    card.style.setProperty('--rx', ((0.5 - y) * 6).toFixed(2) + 'deg');
+                    card.style.setProperty('--mx', (x * 100).toFixed(1) + '%');
+                    card.style.setProperty('--my', (y * 100).toFixed(1) + '%');
+                    raf = null;
+                });
+            });
+            card.addEventListener('pointerleave', function () {
+                card.style.setProperty('--rx', '0deg');
+                card.style.setProperty('--ry', '0deg');
+            });
+        });
     }
 })();

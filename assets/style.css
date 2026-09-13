@@ -135,22 +135,35 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .projects-grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
     gap: 28px;
+    perspective: 1400px;                 /* 3D 倾斜的透视舞台 */
 }
 .project-card {
     display: block;
+    position: relative;
     background: var(--bg);
     border: 1px solid var(--hairline);
     border-radius: var(--radius);
     overflow: hidden;
     color: var(--text);
-    transition: var(--ease-out);
+    transform: translateY(var(--lift, 0px)) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transition: transform 0.4s cubic-bezier(0.22,1,0.36,1), box-shadow 0.4s ease;
+    will-change: transform;
 }
 .project-card:hover {
     text-decoration: none;
-    transform: translateY(-4px);
-    box-shadow: 0 12px 32px rgba(0,0,0,0.08);
+    --lift: -6px;
+    box-shadow: 0 22px 44px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.05);
     border-color: var(--hairline);
 }
+/* 光泽：随光标移动的高光（位置由 site.js 写入 --mx / --my） */
+.project-card::after {
+    content: ''; position: absolute; inset: 0;
+    border-radius: inherit; pointer-events: none;
+    background: radial-gradient(460px circle at var(--mx, 50%) var(--my, 40%),
+                rgba(255,255,255,0.32), transparent 46%);
+    opacity: 0; transition: opacity 0.35s ease;
+}
+.project-card:hover::after { opacity: 1; }
 .card-cover {
     aspect-ratio: 16 / 9.5;
     background: var(--bg-alt);
@@ -380,4 +393,62 @@ footer a { color: var(--text-2); }
 @media (prefers-reduced-motion: reduce) {
     .hero-logo, .hero .eyebrow, .hero h1, .hero .sub, .hero-links { animation: none; }
     .card-cover img, .spec { transition: none; }
+}
+
+/* ============================================================
+   光影与 3D —— 柔光、辉光、倾斜、光泽
+   ============================================================ */
+
+/* Hero：缓慢漂移的柔光（置于内容之下，白底上的"摄影棚布光"） */
+.hero { position: relative; isolation: isolate; }
+.hero::before, .hero::after {
+    content: ''; position: absolute; border-radius: 50%;
+    filter: blur(90px); pointer-events: none; z-index: -1;
+}
+.hero::before {
+    width: 520px; height: 520px; top: -100px; left: 50%;
+    background: radial-gradient(circle, rgba(91,79,207,0.15), transparent 65%);
+    transform: translateX(-72%);
+    animation: driftA 16s ease-in-out infinite alternate;
+}
+.hero::after {
+    width: 420px; height: 420px; bottom: 20px; left: 50%;
+    background: radial-gradient(circle, rgba(126,115,224,0.12), transparent 65%);
+    transform: translateX(6%);
+    animation: driftB 20s ease-in-out infinite alternate;
+}
+@keyframes driftA {
+    from { transform: translateX(-72%) translateY(0); }
+    to   { transform: translateX(-56%) translateY(34px); }
+}
+@keyframes driftB {
+    from { transform: translateX(6%) translateY(0); }
+    to   { transform: translateX(-8%) translateY(-26px); }
+}
+
+/* Hero logo：悬浮光影（投在"空气"中的软阴影） */
+.hero-logo { filter: drop-shadow(0 14px 28px rgba(68,57,179,0.35)); }
+
+/* 黑色数据幕：大数字背后的紫色辉光，缓慢呼吸 */
+.section.dark { position: relative; overflow: hidden; }
+.section.dark::before {
+    content: ''; position: absolute; left: 50%; top: 4%;
+    width: 940px; height: 480px; transform: translateX(-50%);
+    background: radial-gradient(ellipse, rgba(91,79,207,0.32), transparent 62%);
+    filter: blur(70px); pointer-events: none;
+    animation: glowPulse 8s ease-in-out infinite alternate;
+}
+.section.dark .container { position: relative; }
+@keyframes glowPulse {
+    from { opacity: 0.65; }
+    to   { opacity: 1; }
+}
+
+/* Apple 式分层柔影（面板浮起感） */
+.spec-grid, .meta, .shot-frame {
+    box-shadow: 0 2px 6px rgba(0,0,0,0.03), 0 16px 40px rgba(0,0,0,0.07);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hero::before, .hero::after, .section.dark::before { animation: none; }
 }
