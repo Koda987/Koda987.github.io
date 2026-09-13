@@ -206,8 +206,11 @@
             if (a.origin !== location.origin) return;                          // 外链/跨源
             if (href.charAt(0) === '#' || !/\.html($|[?#])/.test(href)) return; // 锚点/非页面链接
             e.preventDefault();
+            // 被点击的模块（项目卡/链接组）向左上角飞出，其余内容渐白隐去
+            var module = a.closest('.project-card') || a.closest('.hero-links') || a;
+            module.classList.add('fly-away');
             document.body.classList.add('page-exit');
-            setTimeout(function () { location.href = href; }, 230);
+            setTimeout(function () { location.href = href; }, 450);
         });
     }
 })();
