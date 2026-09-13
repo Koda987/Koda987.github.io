@@ -177,4 +177,37 @@
     document.addEventListener('visibilitychange', function () {
         document.title = document.hidden ? '👋 还回来看 Koda 吗' : pageTitle;
     });
+
+    /* ---------- 8. 页面切换动画 ----------
+       原生 View Transitions 可用（部署后的 http/https + 新浏览器）→ 交给 CSS；
+       否则（本地 file:// 等）用 JS 兜底：离场动画后跳转 + 进场浮入。
+    -------------------------------------------------- */
+    var vtActive = false;
+    try {
+        vtActive = window.CSS && CSS.supports &&
+            CSS.supports('selector(::view-transition-group(root))') &&
+            /^https?:$/.test(location.protocol);
+    } catch (e) { vtActive = false; }
+
+    // 进场：本页加载时整体轻浮（仅兜底环境）
+    if (!vtActive && !reduced) {
+        document.body.classList.add('page-enter');
+    }
+
+    // 出场：点击站内文档链接 → 先播离场再跳转（仅兜底环境）
+    if (!vtActive && !reduced) {
+        document.addEventListener('click', function (e) {
+            if (e.defaultPrevented || e.button !== 0 ||
+                e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            var a = e.target.closest ? e.target.closest('a') : null;
+            if (!a) return;
+            var href = a.getAttribute('href') || '';
+            if (a.target === '_blank') return;
+            if (a.origin !== location.origin) return;                          // 外链/跨源
+            if (href.charAt(0) === '#' || !/\.html($|[?#])/.test(href)) return; // 锚点/非页面链接
+            e.preventDefault();
+            document.body.classList.add('page-exit');
+            setTimeout(function () { location.href = href; }, 230);
+        });
+    }
 })();

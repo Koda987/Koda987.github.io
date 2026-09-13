@@ -565,3 +565,33 @@ table.exp tr.best td {
 @media (prefers-reduced-motion: reduce) {
     [data-typing].typing::after { animation: none; }
 }
+
+/* ============================================================
+   页面切换动画 —— 双保险
+   ① 原生 View Transitions（部署后 Chrome/Edge 生效，同源跨页过渡）
+   ② JS 兜底（本地 file:// 等环境，由 site.js 驱动 body 进出场类）
+   ============================================================ */
+@view-transition { navigation: auto; }
+
+@media (prefers-reduced-motion: no-preference) {
+    ::view-transition-old(root) {
+        animation: vt-out 0.26s cubic-bezier(0.4, 0, 1, 1) both;
+    }
+    ::view-transition-new(root) {
+        animation: vt-in 0.34s cubic-bezier(0, 0, 0.2, 1) both;
+    }
+    @keyframes vt-out { to   { opacity: 0; transform: translateY(-12px); } }
+    @keyframes vt-in  { from { opacity: 0; transform: translateY(16px); } }
+
+    /* JS 兜底：整页子元素集体进/出场（避开 body 自身 transform，不干扰 sticky 导航） */
+    body.page-enter > * { animation: pageIn 0.4s cubic-bezier(0, 0, 0.2, 1) both; }
+    body.page-exit > *  { animation: pageExit 0.22s cubic-bezier(0.4, 0, 1, 1) both; }
+    @keyframes pageIn   { from { opacity: 0; transform: translateY(16px); } }
+    @keyframes pageExit { to   { opacity: 0; transform: translateY(-12px); } }
+}
+
+/* 兜底动画期间：导航参与但更轻（只淡入淡出，不位移，避免毛玻璃抖动） */
+body.page-enter > .nav { animation-name: pageInFade; }
+body.page-exit > .nav  { animation-name: pageExitFade; }
+@keyframes pageInFade   { from { opacity: 0; } }
+@keyframes pageExitFade { to   { opacity: 0.4; } }
