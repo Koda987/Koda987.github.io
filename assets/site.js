@@ -101,4 +101,80 @@
             });
         });
     }
+
+    /* ---------- 5. 流式打字（首页 hero —— 用我项目里的方式向访客问好） ---------- */
+    var sub = document.querySelector('[data-typing]');
+    if (sub) {
+        var h = new Date().getHours();
+        var greet = h < 5 ? '夜深了' : h < 11 ? '早上好' : h < 14 ? '中午好' : h < 18 ? '下午好' : '晚上好';
+        var lines = [
+            greet + '，很高兴见到你。',
+            '把大模型能力落成能用的产品。',
+            'RAG 检索 · SSE 流式 · 数据驱动调参。',
+            '此刻的字，正用我自己项目里的方式逐字浮现。'
+        ];
+        if (reduced) {
+            sub.textContent = lines[1];
+        } else {
+            sub.classList.add('typing');
+            var li = 0, ci = 0, deleting = false;
+            setTimeout(function tick() {
+                var line = lines[li];
+                if (!deleting) {
+                    ci++;
+                    sub.textContent = line.slice(0, ci);
+                    if (ci === line.length) {
+                        deleting = true;
+                        setTimeout(tick, 2400);          // 打完整句停顿
+                        return;
+                    }
+                    setTimeout(tick, 45 + Math.random() * 55);
+                } else {
+                    ci--;
+                    sub.textContent = line.slice(0, ci);
+                    if (ci === 0) {
+                        deleting = false;
+                        li = (li + 1) % lines.length;
+                        setTimeout(tick, 420);           // 换句前小停顿
+                        return;
+                    }
+                    setTimeout(tick, 16);
+                }
+            }, 900);                                     // 等 hero 入场动画完成
+        }
+    }
+
+    /* ---------- 6. 实时时钟（导航栏，秒针跳动） ---------- */
+    var clock = document.getElementById('siteClock');
+    if (clock) {
+        var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+        var wd = ['日', '一', '二', '三', '四', '五', '六'];
+        var tickClock = function () {
+            var d = new Date();
+            clock.textContent = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+                ' 周' + wd[d.getDay()] + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+        };
+        tickClock();
+        setInterval(tickClock, 1000);
+    }
+
+    /* ---------- 7. 建站天数 / 控制台彩蛋 / 标签页彩蛋 ---------- */
+    var daysEl = document.getElementById('siteDays');
+    if (daysEl) {
+        daysEl.textContent = Math.max(1, Math.ceil((Date.now() - new Date(2026, 8, 14)) / 86400000));
+    }
+
+    console.log(
+        '%c◈ Koda%c\n' +
+        '正在寻找 LLM 应用开发 / AI 产品实习\n' +
+        'GitHub → https://github.com/Koda987\n' +
+        '（你能翻到控制台，说明足够细心——我们一定会聊得来 :)）',
+        'font-size:22px;font-weight:700;color:#5b4fcf;',
+        'font-size:12px;color:#6e6e73;line-height:1.8;'
+    );
+
+    var pageTitle = document.title;
+    document.addEventListener('visibilitychange', function () {
+        document.title = document.hidden ? '👋 还回来看 Koda 吗' : pageTitle;
+    });
 })();

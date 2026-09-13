@@ -341,7 +341,7 @@ footer a { color: var(--text-2); }
     .spec:last-child { border-bottom: none !important; }
     .about-grid { grid-template-columns: 1fr; }
     .skill-row { grid-template-columns: 1fr; gap: 6px; }
-    .nav-links .nav-link.hide-m { display: none; }
+    .nav-links .hide-m { display: none; }
 }
 
 /* ============================================================
@@ -539,4 +539,29 @@ footer a { color: var(--text-2); }
 /* 实验表"最优"行：紫→蓝渐变底 */
 table.exp tr.best td {
     background: linear-gradient(90deg, rgba(91,79,207,0.32), rgba(59,130,246,0.16));
+}
+
+/* ============================================================
+   生命感 —— 让站点"活着"的细节
+   ============================================================ */
+
+/* 导航实时时钟 */
+.nav-clock {
+    font-family: var(--font-mono); font-size: 12px;
+    color: var(--text-3); letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;               /* 数字等宽，秒针跳动不抖动 */
+}
+
+/* 流式打字光标（首页 hero，呼应项目里的 SSE 输出） */
+[data-typing] { min-height: 1.8em; }
+[data-typing].typing::after {
+    content: '▍';
+    color: var(--accent);
+    margin-left: 2px;
+    animation: blink 0.9s steps(1) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+    [data-typing].typing::after { animation: none; }
 }
