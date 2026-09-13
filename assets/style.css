@@ -115,7 +115,7 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 
 /* ================= 章节 ================= */
 .section { padding: var(--section-pad) 0; }
-.section.alt { background: var(--bg-alt); }
+.section.alt { background: linear-gradient(180deg, #f7f6fb, #f4f4f8); }  /* 微带薰衣草的浅灰幕 */
 .section.dark { background: var(--bg-dark); color: #f5f5f7; }
 
 .sec-head { margin-bottom: clamp(36px, 5vw, 56px); }
@@ -399,22 +399,27 @@ footer a { color: var(--text-2); }
    光影与 3D —— 柔光、辉光、倾斜、光泽
    ============================================================ */
 
-/* Hero：缓慢漂移的柔光（置于内容之下，白底上的"摄影棚布光"） */
+/* Hero：缓慢漂移的三色极光（紫 / 蓝 / 粉，置于内容之下） */
 .hero { position: relative; isolation: isolate; }
 .hero::before, .hero::after {
     content: ''; position: absolute; border-radius: 50%;
-    filter: blur(90px); pointer-events: none; z-index: -1;
+    filter: blur(70px); pointer-events: none; z-index: -1;
 }
 .hero::before {
-    width: 520px; height: 520px; top: -100px; left: 50%;
-    background: radial-gradient(circle, rgba(91,79,207,0.15), transparent 65%);
-    transform: translateX(-72%);
+    width: 660px; height: 560px; top: -140px; left: 50%;
+    background:
+        radial-gradient(circle at 30% 30%, rgba(91,79,207,0.20), transparent 42%),
+        radial-gradient(circle at 72% 55%, rgba(59,130,246,0.15), transparent 46%),
+        radial-gradient(circle at 45% 80%, rgba(236,72,153,0.11), transparent 40%);
+    transform: translateX(-60%);
     animation: driftA 16s ease-in-out infinite alternate;
 }
 .hero::after {
-    width: 420px; height: 420px; bottom: 20px; left: 50%;
-    background: radial-gradient(circle, rgba(126,115,224,0.12), transparent 65%);
-    transform: translateX(6%);
+    width: 440px; height: 440px; bottom: 10px; left: 50%;
+    background:
+        radial-gradient(circle at 60% 40%, rgba(6,182,212,0.10), transparent 45%),
+        radial-gradient(circle at 30% 70%, rgba(91,79,207,0.10), transparent 45%);
+    transform: translateX(4%);
     animation: driftB 20s ease-in-out infinite alternate;
 }
 @keyframes driftA {
@@ -451,4 +456,87 @@ footer a { color: var(--text-2); }
 
 @media (prefers-reduced-motion: reduce) {
     .hero::before, .hero::after, .section.dark::before { animation: none; }
+}
+
+/* ============================================================
+   彩色系统 —— 色彩注入"光"与"文字"，骨架保持素雅
+   色板：品牌紫 #5b4fcf · 蓝 #3b82f6 · 青 #06b6d4 · 粉 #ec4899 · 橙 #f59e0b
+   ============================================================ */
+
+/* 渐变文字统一兜底：不支持 background-clip:text 的浏览器显示实色 */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+
+    /* 大标题：墨黑 → 紫 → 蓝 → 粉 的一抹斜向渐变 */
+    .hero h1 {
+        background: linear-gradient(105deg, #1d1d1f 0%, #5b4fcf 46%, #3b82f6 72%, #ec4899 96%);
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    /* 章节眉题：紫 → 蓝 */
+    .sec-eyebrow {
+        background: linear-gradient(90deg, #5b4fcf, #3b82f6);
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .section.dark .sec-eyebrow {
+        background: linear-gradient(90deg, #9d94f0, #7dd3fc);
+        -webkit-background-clip: text; background-clip: text;
+    }
+
+    /* 黑色数据幕：每个大数字一层专属渐变（紫 / 天蓝 / 橙——31% 是警戒色） */
+    .stat:nth-child(1) .cnt {
+        background: linear-gradient(135deg, #ffffff 25%, #b9b0f7);
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .stat:nth-child(2) .cnt {
+        background: linear-gradient(135deg, #ffffff 25%, #7dd3fc);
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .stat:nth-child(3) .cnt {
+        background: linear-gradient(135deg, #ffffff 25%, #fdba74);
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+}
+
+.stat:nth-child(2) em { color: #7dd3fc; }
+.stat:nth-child(3) em { color: #fdba74; }
+
+/* 规格格：每格一条专属色的顶部彩条 */
+.spec { position: relative; }
+.spec::before {
+    content: ''; position: absolute; top: 0; left: 26px;
+    width: 36px; height: 3px; border-radius: 0 0 3px 3px;
+}
+.spec:nth-child(1)::before { background: linear-gradient(90deg, #5b4fcf, #7e73e0); }
+.spec:nth-child(2)::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.spec:nth-child(3)::before { background: linear-gradient(90deg, #06b6d4, #22d3ee); }
+.spec:nth-child(4)::before { background: linear-gradient(90deg, #ec4899, #f472b6); }
+
+/* 时间线：一条紫→蓝→青的"旅程渐变"，节点沿途变色 */
+.tl-list::before {
+    background: linear-gradient(180deg, #7e73e0, #3b82f6 55%, #06b6d4) !important;
+}
+.tl-item:nth-child(1)::before { border-color: #5b4fcf; }
+.tl-item:nth-child(2)::before { border-color: #6a5cf0; }
+.tl-item:nth-child(3)::before { border-color: #3b82f6; }
+.tl-item:nth-child(4)::before { border-color: #06b6d4; }
+.tl-item:nth-child(5)::before { border-color: #10b981; }
+
+/* 技能分类：专属色圆点 */
+.skill-row .k::before {
+    content: ''; display: inline-block;
+    width: 8px; height: 8px; border-radius: 50%;
+    margin-right: 9px; vertical-align: 1px;
+}
+.skill-row:nth-of-type(1) .k::before { background: #5b4fcf; }
+.skill-row:nth-of-type(2) .k::before { background: #3b82f6; }
+.skill-row:nth-of-type(3) .k::before { background: #06b6d4; }
+
+/* 实验表"最优"行：紫→蓝渐变底 */
+table.exp tr.best td {
+    background: linear-gradient(90deg, rgba(91,79,207,0.32), rgba(59,130,246,0.16));
 }
