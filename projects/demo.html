@@ -3,280 +3,787 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>在线演示 · BYOK — Koda</title>
-    <meta name="description" content="带上你自己的 API Key，在浏览器里亲手跑一遍完整的 RAG：配置 → 知识入库 → 检索问答，全程不经任何服务器。">
-    <link rel="icon" type="image/svg+xml" href="../assets/logo.svg">
-    <link rel="stylesheet" href="../assets/style.css">
+    <title>知识引擎 · RAG 在线演示 — Koda</title>
+    <meta name="description" content="知识引擎 RAG 在线演示（BYOK）：填入你自己的 API Key，在浏览器里体验对话与知识库入库——界面与开源项目完全一致。">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%235b4fcf'/%3E%3Cpath d='M50 16 L84 50 L50 84 L16 50 Z' fill='none' stroke='%23fff' stroke-width='6' stroke-linejoin='round'/%3E%3Cpath d='M50 35 L65 50 L50 65 L35 50 Z' fill='%23fff'/%3E%3C/svg%3E">
+    <style>
+        /* ============================================================
+           知识引擎 Knowledge Engine —— 与开源项目同源的设计系统
+           （自 RAG 仓库 chat.html / upload.html 移植，自包含）
+           ============================================================ */
+        :root {
+            --ink: #1c1b1f; --ink-muted: #5f5d66; --ink-subtle: #94929e;
+            --paper: #faf8f5; --paper-warm: #f4f0ea;
+            --surface: #ffffff; --border: #e8e6e1; --border-light: #f0ede8;
+            --brand: #5b4fcf; --brand-dark: #4439b3; --brand-light: #7e73e0;
+            --brand-ghost: #f3f1fe; --brand-surface: #faf9ff;
+            --success: #2d6a4f; --success-bg: #edf7f1;
+            --warning: #8a6d14; --warning-bg: #fef9e7;
+            --error: #c1292e; --error-bg: #fef2f2;
+            --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+                         'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            --text-xs: 0.6875rem; --text-sm: 0.8125rem; --text-base: 0.9375rem;
+            --text-md: 1.0625rem; --text-lg: 1.25rem; --text-xl: 1.5rem;
+            --space-sm: 8px; --space-md: 16px; --space-lg: 24px; --space-xl: 32px;
+            --radius-sm: 8px; --radius-md: 12px; --radius-lg: 18px; --radius-full: 9999px;
+            --shadow-sm: 0 1px 2px rgba(28,27,31,0.04);
+            --shadow-md: 0 4px 16px rgba(28,27,31,0.06);
+            --shadow-lg: 0 12px 40px rgba(28,27,31,0.08);
+            --shadow-glow: 0 0 0 3px rgba(91,79,207,0.12);
+            --ease-out: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+        body {
+            font-family: var(--font-body); background: var(--paper);
+            color: var(--ink); min-height: 100vh; line-height: 1.6;
+        }
+        a { color: var(--brand); text-decoration: none; }
+
+        /* 图标 */
+        .ic {
+            width: 1em; height: 1em; flex-shrink: 0;
+            fill: none; stroke: currentColor; stroke-width: 2;
+            stroke-linecap: round; stroke-linejoin: round;
+            vertical-align: -0.125em;
+        }
+
+        /* ================= 导航（与项目一致） ================= */
+        .nav {
+            position: sticky; top: 0; z-index: 100;
+            background: rgba(255,255,255,0.82);
+            backdrop-filter: blur(16px) saturate(180%);
+            border-bottom: 1px solid var(--border);
+            padding: 0 var(--space-xl);
+        }
+        .nav-inner {
+            max-width: 1100px; margin: 0 auto;
+            display: flex; align-items: center; gap: var(--space-lg);
+            height: 56px;
+        }
+        .nav-brand {
+            display: flex; align-items: center; gap: 10px;
+            color: var(--ink); font-weight: 700; font-size: var(--text-md);
+            letter-spacing: -0.01em; cursor: pointer;
+        }
+        .logo-mark {
+            width: 32px; height: 32px;
+            background: linear-gradient(135deg, var(--brand), var(--brand-light));
+            border-radius: 9px;
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-size: 15px;
+        }
+        .nav-links { display: flex; gap: 4px; }
+        .nav-link {
+            padding: 6px 14px; border-radius: var(--radius-sm);
+            font-size: var(--text-sm); font-weight: 500;
+            color: var(--ink-muted); cursor: pointer;
+            transition: var(--ease-out); background: none; border: none;
+            font-family: var(--font-body);
+        }
+        .nav-link:hover { color: var(--ink); background: var(--paper-warm); }
+        .nav-link.active { color: var(--brand); background: var(--brand-ghost); font-weight: 600; }
+        .nav-actions { margin-left: auto; display: flex; align-items: center; gap: var(--space-sm); }
+        .btn-sm, .btn-danger {
+            padding: 6px 14px; font-size: var(--text-xs); font-weight: 600;
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--surface); color: var(--ink-muted);
+            cursor: pointer; transition: var(--ease-out); font-family: var(--font-body);
+        }
+        .btn-sm:hover { border-color: var(--brand-light); color: var(--brand); }
+        .btn-danger:hover { border-color: var(--error); color: var(--error); background: var(--error-bg); }
+        .badge {
+            font-size: var(--text-xs); font-weight: 600;
+            padding: 2px 10px; border-radius: var(--radius-full);
+        }
+        .badge.ok { background: var(--success-bg); color: var(--success); }
+        .badge.err { background: var(--error-bg); color: var(--error); }
+        .badge.idle { background: var(--paper-warm); color: var(--ink-subtle); }
+
+        /* ================= 主区 ================= */
+        .main { max-width: 900px; margin: 0 auto; padding: var(--space-xl) var(--space-md) var(--space-2xl, 48px); }
+        .page-header { margin-bottom: var(--space-lg); }
+        .page-header h1 { font-size: var(--text-xl); font-weight: 700; letter-spacing: -0.02em; }
+        .page-header p { color: var(--ink-muted); font-size: var(--text-sm); }
+
+        .view { display: none; }
+        .view.active { display: block; animation: viewIn 0.3s ease-out; }
+        @keyframes viewIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+        /* ================= 对话视图（与 chat.html 同款） ================= */
+        .chat-wrap {
+            display: flex; flex-direction: column;
+            height: calc(100vh - 210px); min-height: 420px;
+        }
+        .empty-state {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; text-align: center; gap: var(--space-lg);
+        }
+        .empty-state .hero-icon {
+            width: 72px; height: 72px;
+            background: linear-gradient(135deg, var(--brand-ghost), #ede9fe);
+            border-radius: 18px;
+            display: flex; align-items: center; justify-content: center; font-size: 30px;
+        }
+        .empty-state h2 { font-size: var(--text-lg); font-weight: 700; }
+        .empty-state p { color: var(--ink-muted); font-size: var(--text-sm); max-width: 360px; }
+        .hint-grid { display: flex; gap: var(--space-md); flex-wrap: wrap; justify-content: center; }
+        .hint-chip {
+            padding: 7px 16px; background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radius-full); font-size: var(--text-xs);
+            color: var(--ink-muted); cursor: pointer; transition: var(--ease-out);
+            font-family: var(--font-body);
+        }
+        .hint-chip:hover { border-color: var(--brand-light); color: var(--brand); box-shadow: var(--shadow-glow); }
+
+        .messages {
+            flex: 1; overflow-y: auto; padding: var(--space-lg) 0;
+            display: flex; flex-direction: column; gap: var(--space-lg);
+            scroll-behavior: smooth;
+        }
+        .messages::-webkit-scrollbar { width: 4px; }
+        .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+        .msg { display: flex; gap: 12px; max-width: 88%; animation: msgIn 0.3s ease-out; }
+        .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+        .msg.assistant { align-self: flex-start; }
+        @keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+        .msg-avatar {
+            width: 34px; height: 34px; border-radius: var(--radius-sm);
+            display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;
+        }
+        .msg.user .msg-avatar { background: var(--brand-ghost); }
+        .msg.assistant .msg-avatar { background: linear-gradient(135deg, var(--brand), var(--brand-light)); color: #fff; }
+        .msg-body { min-width: 0; }
+        .msg-bubble { padding: 12px 18px; line-height: 1.65; font-size: var(--text-base); word-break: break-word; }
+        .msg.user .msg-bubble {
+            background: var(--brand); color: #fff;
+            border-radius: var(--radius-lg) var(--radius-lg) 6px var(--radius-lg);
+        }
+        .msg.assistant .msg-bubble {
+            background: var(--surface); color: var(--ink);
+            border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) 6px;
+            border: 1px solid var(--border-light); box-shadow: var(--shadow-sm);
+        }
+        .msg-bubble code {
+            background: var(--paper-warm); padding: 2px 6px; border-radius: 4px;
+            font-family: var(--font-mono); font-size: 0.9em; color: var(--brand-dark);
+        }
+        .typing-dots { display: flex; gap: 4px; padding: 4px 0; }
+        .typing-dots span {
+            width: 6px; height: 6px; background: var(--ink-subtle);
+            border-radius: 50%; animation: bounce 1.2s infinite;
+        }
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
+
+        /* 引用（检索可视化，项目卡片风） */
+        .cite { margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 8px; }
+        .cite > button {
+            background: none; border: none; cursor: pointer;
+            font-size: var(--text-xs); font-weight: 600; color: var(--brand-dark);
+            font-family: var(--font-body); padding: 2px 0;
+        }
+        .cite-body { display: none; flex-direction: column; gap: 6px; margin-top: 8px; }
+        .cite.open .cite-body { display: flex; }
+        .cite-item {
+            background: var(--paper); border: 1px solid var(--border-light);
+            border-radius: var(--radius-sm); padding: 8px 11px;
+            font-size: var(--text-xs); line-height: 1.6; color: var(--ink-muted);
+        }
+        .cite-head {
+            display: flex; justify-content: space-between; gap: 10px; margin-bottom: 3px;
+            font-family: var(--font-mono); font-size: 11px;
+        }
+        .cite-src { color: var(--brand-dark); font-weight: 700; }
+        .cite-sim { color: var(--success); font-weight: 700; }
+
+        .input-area { padding: var(--space-md) 0 0; flex-shrink: 0; }
+        .input-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
+            display: flex; align-items: flex-end; gap: var(--space-sm); padding: 8px 12px;
+            transition: var(--ease-out);
+        }
+        .input-card:focus-within { border-color: var(--brand-light); box-shadow: var(--shadow-md), var(--shadow-glow); }
+        .input-card textarea {
+            flex: 1; border: none; background: transparent; padding: 8px 4px;
+            font-size: var(--text-base); font-family: var(--font-body);
+            resize: none; outline: none; max-height: 120px; color: var(--ink); line-height: 1.5;
+        }
+        .btn-send {
+            height: 40px; padding: 0 20px; flex-shrink: 0;
+            border: none; border-radius: var(--radius-sm);
+            background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+            color: #fff; cursor: pointer; font-size: var(--text-sm); font-weight: 600;
+            font-family: var(--font-body); transition: var(--ease-out);
+        }
+        .btn-send:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(91,79,207,0.3); }
+        .btn-send:disabled { opacity: 0.45; cursor: not-allowed; }
+        .input-hint { font-size: var(--text-xs); color: var(--ink-subtle); text-align: center; margin-top: 6px; }
+
+        /* ================= 知识库视图（与 upload.html 向导同款） ================= */
+        .card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); padding: var(--space-lg);
+            box-shadow: var(--shadow-sm);
+        }
+        .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: var(--space-md); }
+        .card-icon {
+            width: 36px; height: 36px; border-radius: var(--radius-sm);
+            display: flex; align-items: center; justify-content: center; font-size: 16px;
+        }
+        .card-icon.purple { background: var(--brand-ghost); }
+        .card-icon.green { background: var(--success-bg); }
+        .card-icon .ic { width: 17px; height: 17px; color: var(--brand-dark); }
+        .card-icon.green .ic { color: var(--success); }
+        .card-header h3 { font-size: var(--text-base); font-weight: 700; }
+
+        .wizard-card { padding: 0; overflow: hidden; margin-bottom: var(--space-lg); }
+        .steps-bar {
+            display: flex; align-items: center;
+            padding: var(--space-md) var(--space-lg);
+            border-bottom: 1px solid var(--border-light); background: var(--brand-surface);
+        }
+        .step-node { display: flex; align-items: center; gap: 8px; }
+        .step-dot {
+            width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: var(--text-xs); font-weight: 700;
+            background: var(--paper-warm); color: var(--ink-subtle);
+            border: 1px solid var(--border); transition: var(--ease-out);
+        }
+        .step-name { font-size: var(--text-sm); color: var(--ink-subtle); font-weight: 500; white-space: nowrap; }
+        .step-node.active .step-dot {
+            background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+            color: #fff; border-color: transparent; box-shadow: 0 2px 8px rgba(91,79,207,0.35);
+        }
+        .step-node.active .step-name { color: var(--ink); font-weight: 600; }
+        .step-node.done .step-dot { background: var(--success-bg); color: var(--success); border-color: transparent; }
+        .step-connector { flex: 1; height: 2px; background: var(--border); margin: 0 10px; border-radius: 2px; min-width: 20px; }
+        @media (max-width: 560px) { .step-name { display: none; } .step-node.active .step-name { display: inline; } }
+
+        .wizard-body { padding: var(--space-lg); }
+        .wizard-panel { display: none; }
+        .wizard-panel.active { display: block; animation: viewIn 0.3s ease-out; }
+
+        .source-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); }
+        @media (max-width: 560px) { .source-tiles { grid-template-columns: 1fr; } }
+        .source-tile {
+            position: relative; text-align: left;
+            border: 1.5px solid var(--border); border-radius: var(--radius-md);
+            padding: var(--space-lg); cursor: pointer;
+            background: var(--surface); transition: var(--ease-out);
+            font-family: var(--font-body);
+        }
+        .source-tile:hover { border-color: var(--brand-light); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+        .source-tile.selected { border-color: var(--brand); background: var(--brand-surface); box-shadow: var(--shadow-glow); }
+        .source-tile .tile-check {
+            position: absolute; top: 14px; right: 16px;
+            color: var(--brand); font-weight: 700; opacity: 0; transition: var(--ease-out);
+        }
+        .source-tile.selected .tile-check { opacity: 1; }
+        .tile-ico { font-size: 0; margin-bottom: var(--space-sm); color: var(--brand); }
+        .tile-ico .ic { width: 30px; height: 30px; }
+        .tile-title { font-weight: 700; font-size: var(--text-base); margin-bottom: 4px; color: var(--ink); }
+        .tile-desc { color: var(--ink-muted); font-size: var(--text-sm); line-height: 1.6; }
+        .source-config { display: none; margin-top: var(--space-md); }
+        .source-config.active { display: block; animation: viewIn 0.3s ease-out; }
+
+        .upload-zone {
+            border: 2px dashed var(--border); border-radius: var(--radius-md);
+            padding: var(--space-xl) var(--space-md); text-align: center; cursor: pointer;
+            transition: var(--ease-out); background: var(--paper); margin-bottom: var(--space-md);
+        }
+        .upload-zone:hover, .upload-zone.drag-over { border-color: var(--brand-light); background: var(--brand-surface); box-shadow: var(--shadow-glow); }
+        .upload-zone .ic { width: 38px; height: 38px; color: var(--brand); margin-bottom: 8px; }
+        .zone-title { font-size: var(--text-base); font-weight: 600; margin-bottom: 4px; }
+        .zone-hint { font-size: var(--text-xs); color: var(--ink-subtle); }
+        input[type="file"] { display: none; }
+
+        .text-input-group { margin-bottom: var(--space-md); }
+        .text-input-group label {
+            display: block; font-size: var(--text-xs); font-weight: 600;
+            color: var(--ink-muted); margin-bottom: 4px; letter-spacing: 0.05em;
+        }
+        .text-input-group textarea, .text-input-group input, .wiz-select {
+            width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm);
+            padding: 9px 13px; font-size: var(--text-sm); font-family: var(--font-body);
+            resize: vertical; outline: none; transition: var(--ease-out);
+            background: var(--paper); color: var(--ink); line-height: 1.6;
+        }
+        .text-input-group textarea:focus, .text-input-group input:focus, .wiz-select:focus {
+            border-color: var(--brand-light); box-shadow: var(--shadow-glow); background: var(--surface);
+        }
+
+        .split-layout { display: grid; grid-template-columns: 330px 1fr; gap: var(--space-lg); align-items: start; }
+        @media (max-width: 760px) { .split-layout { grid-template-columns: 1fr; } }
+        .param-group { margin-bottom: var(--space-lg); }
+        .param-label {
+            display: flex; justify-content: space-between; align-items: baseline;
+            font-size: var(--text-xs); font-weight: 600; color: var(--ink-muted);
+            letter-spacing: 0.05em; margin-bottom: 8px;
+        }
+        .param-val { font-family: var(--font-mono); color: var(--brand-dark); font-size: var(--text-sm); }
+        input[type="range"] {
+            width: 100%; appearance: none; -webkit-appearance: none;
+            height: 4px; border-radius: 4px; outline: none; cursor: pointer;
+            background: linear-gradient(90deg, var(--brand) var(--fill, 50%), var(--border) var(--fill, 50%));
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none; -webkit-appearance: none;
+            width: 18px; height: 18px; border-radius: 50%;
+            background: #fff; border: 2.5px solid var(--brand);
+            box-shadow: 0 2px 6px rgba(91,79,207,0.3); cursor: grab;
+        }
+        .wiz-check-row { display: flex; align-items: center; gap: 10px; font-size: var(--text-sm); cursor: pointer; }
+        .wiz-check-row input { width: auto; accent-color: var(--brand); transform: scale(1.15); }
+        .exp-hint {
+            font-size: var(--text-xs); color: var(--ink-subtle);
+            border-left: 3px solid var(--brand-light); padding-left: 10px; line-height: 1.7;
+        }
+
+        .preview-panel {
+            border: 1px solid var(--border-light); border-radius: var(--radius-md);
+            background: var(--paper); padding: var(--space-md); min-height: 220px;
+        }
+        .preview-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--space-sm); }
+        .preview-title { font-size: var(--text-sm); font-weight: 700; }
+        .preview-count { font-size: var(--text-xs); color: var(--ink-subtle); font-family: var(--font-mono); }
+        .seg-list { display: flex; flex-direction: column; gap: var(--space-sm); max-height: 400px; overflow-y: auto; }
+        .seg-list::-webkit-scrollbar { width: 3px; }
+        .seg-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+        .seg-item { background: var(--surface); border: 1px solid var(--border-light); border-radius: var(--radius-sm); padding: 10px 14px; }
+        .seg-head { display: flex; justify-content: space-between; margin-bottom: 4px; }
+        .seg-idx { font-family: var(--font-mono); font-size: var(--text-xs); font-weight: 700; color: var(--brand-dark); }
+        .seg-len { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-subtle); }
+        .seg-text { font-size: var(--text-sm); color: var(--ink-muted); line-height: 1.7; word-break: break-word; }
+
+        .summary-rows { display: flex; flex-direction: column; gap: var(--space-sm); margin-bottom: var(--space-lg); }
+        .summary-row {
+            display: flex; justify-content: space-between; gap: var(--space-md);
+            padding: 10px 14px; background: var(--paper); border-radius: var(--radius-sm); font-size: var(--text-sm);
+        }
+        .summary-row .k { color: var(--ink-muted); flex-shrink: 0; }
+        .summary-row .v { font-weight: 600; font-family: var(--font-mono); text-align: right; word-break: break-all; }
+        .process-stage { display: flex; align-items: center; gap: 10px; padding: 9px 0; font-size: var(--text-sm); color: var(--ink-subtle); }
+        .process-stage.done { color: var(--success); }
+        .process-stage.active { color: var(--ink); font-weight: 600; }
+        .process-stage .ic { width: 16px; height: 16px; }
+        .spinner {
+            width: 15px; height: 15px; border: 2px solid var(--border);
+            border-top-color: var(--brand); border-radius: 50%;
+            animation: spin 0.8s linear infinite; flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .result-box { text-align: center; padding: var(--space-xl) var(--space-lg); border-radius: var(--radius-md); }
+        .result-box.ok { background: var(--success-bg); }
+        .result-box.skip { background: var(--warning-bg); }
+        .result-box.err { background: var(--error-bg); }
+        .result-box .r-ico { margin-bottom: 8px; }
+        .result-box .r-ico .ic { width: 36px; height: 36px; }
+        .result-box .r-title { font-weight: 700; font-size: var(--text-md); margin-bottom: 4px; }
+        .result-box .r-desc { color: var(--ink-muted); font-size: var(--text-sm); }
+
+        .wizard-footer {
+            display: flex; justify-content: space-between; align-items: center; gap: var(--space-md);
+            padding: var(--space-md) var(--space-lg);
+            border-top: 1px solid var(--border-light); background: var(--brand-surface);
+        }
+        .btn-next {
+            padding: 10px 28px; border: none; border-radius: var(--radius-sm);
+            background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+            color: #fff; font-size: var(--text-sm); font-weight: 600;
+            cursor: pointer; font-family: var(--font-body); transition: var(--ease-out);
+        }
+        .btn-next:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(91,79,207,0.3); }
+        .btn-next:disabled { opacity: 0.45; cursor: not-allowed; }
+        .btn-back {
+            padding: 10px 20px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--surface); color: var(--ink-muted); font-size: var(--text-sm);
+            cursor: pointer; font-family: var(--font-body); transition: var(--ease-out);
+        }
+        .btn-back:hover { border-color: var(--brand-light); color: var(--brand); }
+
+        /* 统计卡（三列，与项目一致） */
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-sm); }
+        .stat-cell {
+            text-align: center; padding: var(--space-md) var(--space-xs);
+            background: var(--paper); border: 1px solid var(--border-light);
+            border-radius: var(--radius-sm);
+        }
+        .stat-cell .ic { width: 20px; height: 20px; color: var(--brand-dark); margin-bottom: 6px; }
+        .stat-val { font-size: 20px; font-weight: 700; color: var(--brand-dark); font-family: var(--font-mono); line-height: 1.2; }
+        .stat-val.sm { font-size: var(--text-sm); font-family: var(--font-body); padding-top: 4px; }
+        .stat-lbl { font-size: var(--text-xs); color: var(--ink-muted); margin-top: 4px; }
+        .stats-actions { display: flex; justify-content: center; margin-top: var(--space-md); }
+        .btn-ghost {
+            padding: 6px 16px; font-size: var(--text-xs); font-weight: 600;
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--surface); color: var(--ink-muted);
+            cursor: pointer; transition: var(--ease-out); font-family: var(--font-body);
+        }
+        .btn-ghost:hover { border-color: var(--brand-light); color: var(--brand); }
+
+        /* 来源列表（项目 doc-item 同款） */
+        .doc-list { display: flex; flex-direction: column; gap: var(--space-sm); max-height: 300px; overflow-y: auto; }
+        .doc-list::-webkit-scrollbar { width: 3px; }
+        .doc-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+        .doc-item {
+            display: flex; align-items: center; gap: 10px; padding: 11px 12px;
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--surface); transition: var(--ease-out);
+        }
+        .doc-item .ic { width: 15px; height: 15px; color: var(--brand-dark); flex-shrink: 0; }
+        .doc-item.custom { border-color: rgba(91,79,207,0.4); background: var(--brand-surface); }
+        .doc-name { flex: 1; min-width: 0; font-weight: 600; font-size: var(--text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .doc-meta { color: var(--ink-subtle); font-size: var(--text-xs); white-space: nowrap; }
+        .doc-del {
+            width: 26px; height: 26px; flex-shrink: 0; border: none;
+            background: transparent; color: var(--ink-subtle);
+            border-radius: 50%; cursor: pointer; transition: var(--ease-out);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .doc-del:hover { background: var(--error-bg); color: var(--error); }
+        .doc-del .ic { width: 13px; height: 13px; color: inherit; }
+
+        /* ================= API 配置弹窗 ================= */
+        .dlg-overlay {
+            position: fixed; inset: 0; z-index: 300;
+            background: rgba(28,27,31,0.42);
+            display: none; align-items: center; justify-content: center; padding: 20px;
+        }
+        .dlg-overlay.open { display: flex; animation: viewIn 0.25s ease-out; }
+        .dlg {
+            width: 560px; max-width: 100%; max-height: 90vh; overflow-y: auto;
+            background: var(--surface); border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg); padding: var(--space-lg);
+        }
+        .dlg-head { display: flex; align-items: center; gap: 10px; margin-bottom: var(--space-md); }
+        .dlg-head h3 { font-size: var(--text-md); font-weight: 700; }
+        .dlg-head .card-icon { width: 32px; height: 32px; }
+        .dlg-close {
+            margin-left: auto; width: 30px; height: 30px; border: none;
+            border-radius: var(--radius-sm); background: transparent;
+            color: var(--ink-subtle); cursor: pointer; font-size: 14px;
+        }
+        .dlg-close:hover { background: var(--paper-warm); color: var(--ink); }
+        .slot-note {
+            font-size: var(--text-xs); color: var(--ink-muted); line-height: 1.7;
+            background: var(--paper); border-radius: var(--radius-sm);
+            padding: 10px 13px; margin-bottom: var(--space-md);
+        }
+        .privacy-note {
+            display: flex; gap: 9px; font-size: var(--text-xs); color: var(--ink-subtle);
+            line-height: 1.7; padding: 10px 13px; border-radius: var(--radius-sm);
+            background: var(--success-bg); margin: var(--space-md) 0;
+        }
+        .privacy-note .ic { color: var(--success); margin-top: 2px; }
+
+        /* ================= toast / 页脚 ================= */
+        .toast-container { position: fixed; top: 72px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+        .toast {
+            background: var(--surface); padding: 12px 18px; border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg); font-size: var(--text-sm);
+            border-left: 3px solid var(--brand); max-width: 360px;
+            animation: slideIn 0.3s ease-out;
+        }
+        .toast.error { border-left-color: var(--error); }
+        .toast.success { border-left-color: var(--success); }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+
+        footer {
+            border-top: 1px solid var(--border); padding: var(--space-lg) 0;
+            text-align: center; color: var(--ink-subtle); font-size: var(--text-xs);
+        }
+        footer a { color: var(--ink-muted); }
+        footer a:hover { color: var(--brand); }
+
+        @media (max-width: 640px) {
+            .nav { padding: 0 var(--space-md); }
+            .nav-links { display: none; }
+            .msg { max-width: 95%; }
+            .chat-wrap { height: calc(100vh - 240px); }
+        }
+    </style>
 </head>
 <body>
 
 <!-- 图标精灵：Lucide v0.462.0（ISC License）https://lucide.dev -->
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
-    <symbol id="i-key" viewBox="0 0 24 24">
-        <path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4" />
-        <path d="m21 2-9.6 9.6" />
-        <circle cx="7.5" cy="15.5" r="5.5" />
-    </symbol>
-    <symbol id="i-zap" viewBox="0 0 24 24">
-        <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" />
-    </symbol>
-    <symbol id="i-shield" viewBox="0 0 24 24">
-        <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1 1 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
-    </symbol>
-    <symbol id="i-database" viewBox="0 0 24 24">
-        <ellipse cx="12" cy="5" rx="9" ry="3" />
-        <path d="M3 5V19A9 3 0 0 0 21 19V5" />
-        <path d="M3 12A9 3 0 0 0 21 12" />
-    </symbol>
-    <symbol id="i-book-open" viewBox="0 0 24 24">
-        <path d="M12 7v14" />
-        <path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />
-    </symbol>
-    <symbol id="i-plus" viewBox="0 0 24 24">
-        <path d="M5 12h14" />
-        <path d="M12 5v14" />
-    </symbol>
-    <symbol id="i-trash-2" viewBox="0 0 24 24">
-        <path d="M3 6h18" />
-        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-        <line x1="10" x2="10" y1="11" y2="17" />
-        <line x1="14" x2="14" y1="11" y2="17" />
-    </symbol>
-    <symbol id="i-search" viewBox="0 0 24 24">
-        <circle cx="11" cy="11" r="8" />
-        <path d="m21 21-4.3-4.3" />
-    </symbol>
-    <symbol id="i-message-circle" viewBox="0 0 24 24">
-        <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
-    </symbol>
+    <symbol id="i-file-text" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
+    <symbol id="i-pen-line" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/></symbol>
+    <symbol id="i-cloud-upload" viewBox="0 0 24 24"><path d="M12 13v8"/><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="m8 17 4-4 4 4"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></symbol>
+    <symbol id="i-file-stack" viewBox="0 0 24 24"><path d="M21 7h-3a2 2 0 0 1-2-2V2"/><path d="M21 6v6.5c0 .8-.7 1.5-1.5 1.5h-7c-.8 0-1.5-.7-1.5-1.5v-9c0-.8.7-1.5 1.5-1.5H17Z"/><path d="M7 8v8.8c0 .3.2.6.4.8.2.2.5.4.8.4H15"/><path d="M3 12v8.8c0 .3.2.6.4.8.2.2.5.4.8.4H11"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+    <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></symbol>
+    <symbol id="i-trash-2" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></symbol>
+    <symbol id="i-scissors" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><path d="M8.12 8.12 12 12"/><path d="M20 4 8.12 15.88"/><circle cx="6" cy="18" r="3"/><path d="M14.8 14.8 20 20"/></symbol>
+    <symbol id="i-circle-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-triangle-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-book-open" viewBox="0 0 24 24"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1 1 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></symbol>
 </svg>
 
-<!-- ================= 导航 ================= -->
+<!-- ================= 导航（与项目一致） ================= -->
 <nav class="nav">
     <div class="nav-inner">
-        <a href="../index.html" class="nav-brand">
-            <img src="../assets/logo.svg" alt="" class="logo-img">
-            Koda
+        <a class="nav-brand" href="../index.html" title="返回 Koda 作品集">
+            <span class="logo-mark">◈</span>
+            知识引擎
         </a>
         <div class="nav-links">
-            <a href="rag.html" class="nav-link">项目详情</a>
-            <a href="https://github.com/Koda987/rag-knowledge" target="_blank" rel="noopener" class="nav-link">GitHub ↗</a>
-            <span class="nav-clock hide-m" id="siteClock"></span>
+            <button class="nav-link active" id="tabChat" onclick="switchView('chat')">对话</button>
+            <button class="nav-link" id="tabKb" onclick="switchView('kb')">知识库</button>
+        </div>
+        <div class="nav-actions">
+            <span class="badge idle" id="apiBadge" style="cursor:pointer" onclick="openDlg()" title="点击配置 API">API 未配置</span>
+            <button class="btn-sm" title="配置你自己的 API Key" onclick="openDlg()"><svg class="ic"><use href="#i-key"/></svg> API 配置</button>
         </div>
     </div>
 </nav>
 
-<!-- ================= Hero + 工作原理 ================= -->
-<header class="hero container demo-hero" id="top">
-    <img src="../assets/logo.svg" alt="Koda" class="hero-logo">
-    <p class="eyebrow">Live Demo · BYOK（Bring Your Own Key）</p>
-    <h1 style="font-size: clamp(2.2rem, 6vw, 3.8rem);">亲手跑一遍完整的 RAG</h1>
-    <p class="sub">填入你自己的 API Key——配置模型、往知识库存入你自己的资料、提问并看见检索过程。<br>密钥只存在你的浏览器里，直连官方 API，不经过任何服务器。</p>
-
-    <div class="how-row">
-        <div class="how-step">
-            <span class="n">01</span>
-            <div><div class="t">问题向量化</div><div class="d">你的问题经嵌入模型变成语义向量</div></div>
-        </div>
-        <div class="how-step">
-            <span class="n">02</span>
-            <div><div class="t">余弦相似检索</div><div class="d">与知识库全部块比对，取最相近的 Top-3</div></div>
-        </div>
-        <div class="how-step">
-            <span class="n">03</span>
-            <div><div class="t">引用式生成</div><div class="d">命中的原文作为参考资料，交给对话模型流式作答</div></div>
+<main class="main">
+    <!-- ================= 对话视图 ================= -->
+    <div class="view active" id="view-chat">
+        <div class="chat-wrap">
+            <div class="empty-state" id="emptyState">
+                <div class="hero-icon"><svg class="ic" style="width:30px;height:30px;color:var(--brand)"><use href="#i-search"/></svg></div>
+                <h2>有什么我可以帮助你的？</h2>
+                <p>知识引擎已加载示例知识库（尺码 / 洗涤 / 颜色搭配）。先配置 API，再去「知识库」页存入你自己的资料也可以。</p>
+                <div class="hint-grid">
+                    <button class="hint-chip" onclick="quickAsk('我身高178cm、体重140斤，穿什么尺码？')">我身高178cm体重140斤，穿什么尺码？</button>
+                    <button class="hint-chip" onclick="quickAsk('羊毛衫能用洗衣机洗吗？')">羊毛衫能机洗吗？</button>
+                    <button class="hint-chip" onclick="quickAsk('参加面试穿什么颜色好？')">面试穿什么颜色？</button>
+                </div>
+            </div>
+            <div class="messages" id="messages" style="display:none;"></div>
+            <div class="input-area">
+                <div class="input-card">
+                    <textarea id="userInput" rows="1" placeholder="输入你的问题… Enter 发送 / Shift+Enter 换行"
+                              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();ask();}"></textarea>
+                    <button class="btn-send" id="btnSend" onclick="ask()">发送</button>
+                </div>
+                <p class="input-hint">基于 RAG 检索增强生成 · 回答可展开查看引用的知识块与相似度</p>
+            </div>
         </div>
     </div>
-</header>
 
-<!-- ================= 第 1 步 · 配置 ================= -->
-<section id="setup" class="section reveal" style="padding-top: clamp(40px, 6vw, 70px);">
-    <div class="container">
-        <div class="step-head">
-            <span class="step-badge">1</span>
-            <h2>配置你的 API</h2>
-            <span class="step-sub">约 1 分钟 · 两个 Key（选 SiliconFlow 只需一个）</span>
+    <!-- ================= 知识库视图（Dify 式向导） ================= -->
+    <div class="view" id="view-kb">
+        <div class="page-header">
+            <h1>知识库管理</h1>
+            <p>与开源项目同款的三步向导：选数据源 → 分段与清洗 → 处理入库（浏览器内完成，刷新还原）</p>
         </div>
 
-        <div class="glass" style="border-radius: var(--radius-glass); padding: clamp(20px, 3.5vw, 32px);">
-            <div class="setup-grid">
-                <!-- 对话槽 -->
-                <div class="slot-card">
-                    <div class="slot-head">
-                        <svg class="ic"><use href="#i-message-circle"/></svg>
-                        对话模型 <span class="mini-chip free" style="background: var(--accent-ghost); color: var(--accent-dark);">任选</span>
-                    </div>
-                    <div class="field" style="margin-bottom: 14px;">
-                        <label>提供商</label>
-                        <select id="provSel"></select>
-                    </div>
-                    <div class="field" style="margin-bottom: 14px;">
-                        <label>API 地址（OpenAI 兼容）</label>
-                        <input type="text" id="chatBase" class="mono" placeholder="https://api.example.com/v1">
-                    </div>
-                    <div class="field" style="margin-bottom: 14px;">
-                        <label>模型名（可改）</label>
-                        <input type="text" id="chatModel" class="mono" placeholder="model-id">
-                    </div>
-                    <div class="field">
-                        <label>该提供商的 API Key</label>
-                        <input type="password" id="chatKey" class="mono" placeholder="sk-…" autocomplete="off">
-                        <div class="hint" id="provHint"></div>
-                    </div>
-                </div>
+        <div class="card wizard-card">
+            <div class="steps-bar">
+                <div class="step-node active" id="st1"><span class="step-dot">1</span><span class="step-name">选择数据源</span></div>
+                <div class="step-connector"></div>
+                <div class="step-node" id="st2"><span class="step-dot">2</span><span class="step-name">文本分段与清洗</span></div>
+                <div class="step-connector"></div>
+                <div class="step-node" id="st3"><span class="step-dot">3</span><span class="step-name">处理并完成</span></div>
+            </div>
 
-                <!-- 嵌入槽 -->
-                <div class="slot-card">
-                    <div class="slot-head">
-                        <svg class="ic"><use href="#i-database"/></svg>
-                        嵌入模型 <span class="mini-chip fixed">固定</span>
+            <div class="wizard-body">
+                <div class="wizard-panel active" id="panel1">
+                    <div class="source-tiles">
+                        <button type="button" class="source-tile" id="tileFile" onclick="chooseSource('file')">
+                            <span class="tile-check">✓</span>
+                            <div class="tile-ico"><svg class="ic"><use href="#i-file-text"/></svg></div>
+                            <div class="tile-title">上传文本文件</div>
+                            <div class="tile-desc">拖拽或点击选择 .txt / .md / .csv / .json 等文本文件</div>
+                        </button>
+                        <button type="button" class="source-tile" id="tileText" onclick="chooseSource('text')">
+                            <span class="tile-check">✓</span>
+                            <div class="tile-ico"><svg class="ic"><use href="#i-pen-line"/></svg></div>
+                            <div class="tile-title">粘贴文本内容</div>
+                            <div class="tile-desc">直接输入或粘贴一段知识文本，可自定义来源名称</div>
+                        </button>
                     </div>
-                    <div class="lock-row">
-                        <svg class="ic" style="width:14px;height:14px"><use href="#i-database"/></svg>
-                        SiliconFlow · BAAI/bge-m3 · /embeddings
+                    <div class="source-config" id="cfgFile">
+                        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+                            <svg class="ic"><use href="#i-cloud-upload"/></svg>
+                            <div class="zone-title">点击选择或拖拽文件到此处</div>
+                            <div class="zone-hint">.txt / .md / .csv / .json / .xml / .html / .log</div>
+                        </div>
+                        <input type="file" id="fileInput" accept=".txt,.md,.csv,.json,.xml,.html,.log"
+                               onchange="pickFile(this.files[0])">
+                        <div class="text-input-group" id="fileInfo" style="display:none;">
+                            <label>已选择的文件</label>
+                            <input type="text" id="fileName" readonly>
+                        </div>
                     </div>
-                    <div class="field">
-                        <label>嵌入 Key（SiliconFlow）<span id="embedAuto" style="color:#1e7a4f;font-weight:700;"></span></label>
-                        <input type="password" id="embedKey" class="mono" placeholder="sk-…" autocomplete="off">
-                        <div class="hint">
-                            没有密钥？<a href="https://cloud.siliconflow.cn" target="_blank" rel="noopener">SiliconFlow</a>
-                            注册即送免费额度，bge-m3 嵌入免费——对话选 SiliconFlow 时只需填一个 Key。<br>
-                            嵌入槽为什么不能换：检索向量必须与预建索引用<b>同一个模型</b>算出，换模型就对不上号（RAG 的基本约束）。
+                    <div class="source-config" id="cfgText">
+                        <div class="text-input-group">
+                            <label>知识内容</label>
+                            <textarea id="kbText" rows="5" placeholder="粘贴或输入知识点…"></textarea>
+                        </div>
+                        <div class="text-input-group">
+                            <label>来源名称（可选）</label>
+                            <input type="text" id="kbName" placeholder="给这段知识起个名字">
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="privacy-note">
-                <svg class="ic" style="width:15px;height:15px;margin-top:2px;color:#1e7a4f"><use href="#i-shield"/></svg>
-                <span>
-                    <b>隐私说明：</b>两个 Key 只保存在<b>你浏览器的 localStorage</b>，请求由你的浏览器直发官方 API——
-                    本站是 GitHub Pages 静态页，没有后端，站主拿不到也存不了你的 Key。每次操作消耗你自己账户的少量额度。
-                </span>
-            </div>
-
-            <div style="display:flex; align-items:center; gap:14px; margin-top:18px; flex-wrap:wrap;">
-                <button class="demo-btn" id="btnTest" onclick="testConn()">
-                    <svg class="ic"><use href="#i-zap"/></svg> 测试连接
-                </button>
-                <span class="status-pill" id="connStatus"><span class="dot"></span><span id="connText">未测试</span></span>
-                <span class="status-pill" id="indexStatus" style="margin-left:auto;"><span class="dot"></span><span id="indexText">索引加载中…</span></span>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- ================= 第 2 步 · 知识库 ================= -->
-<section id="kb" class="section alt reveal" style="padding: clamp(50px, 7vw, 90px) 0;">
-    <div class="container">
-        <div class="step-head">
-            <span class="step-badge">2</span>
-            <h2>知识库</h2>
-            <span class="step-sub" id="kbCount">—</span>
-        </div>
-
-        <div class="glass" style="border-radius: var(--radius-glass); padding: clamp(20px, 3.5vw, 32px);">
-            <div class="kb-grid">
-                <!-- 左：入库表单 -->
-                <div>
-                    <div class="slot-head" style="margin-bottom: 12px;">
-                        <svg class="ic"><use href="#i-plus"/></svg>
-                        加入你自己的知识（可选）
-                    </div>
-                    <div class="field" style="margin-bottom: 14px;">
-                        <label>知识内容（粘贴任意文本：产品资料、笔记、FAQ…）</label>
-                        <textarea id="kbText" rows="4" style="width:100%; padding:10px 14px; border-radius:var(--radius-sm); border:1px solid var(--hairline-soft); background:rgba(255,255,255,.72); font-family:var(--font-body); font-size:var(--text-sm); color:var(--text); outline:none; resize:vertical; min-height:90px; line-height:1.6;" placeholder="粘贴一段你自己的资料…"></textarea>
-                    </div>
-                    <div class="field" style="margin-bottom: 16px;">
-                        <label>来源名称</label>
-                        <input type="text" id="kbName" placeholder="例如：我的产品说明书">
-                    </div>
-                    <div class="field" style="margin-bottom: 8px;">
-                        <label>分段最大长度</label>
-                        <div class="range-row">
-                            <input type="range" class="demo-range" id="kbSize" min="100" max="1000" step="10" value="300">
-                            <span class="rv" id="kbSizeVal">300</span>
+                <div class="wizard-panel" id="panel2">
+                    <div class="split-layout">
+                        <div>
+                            <div class="param-group">
+                                <div class="param-label"><span>分段最大长度</span><span class="param-val" id="valSize">300</span></div>
+                                <input type="range" id="pSize" min="100" max="1000" step="10" value="300">
+                            </div>
+                            <div class="param-group">
+                                <div class="param-label"><span>分段重叠</span><span class="param-val" id="valOverlap">50</span></div>
+                                <input type="range" id="pOverlap" min="0" max="200" step="5" value="50">
+                            </div>
+                            <div class="param-group">
+                                <label class="wiz-check-row">
+                                    <input type="checkbox" id="pClean" checked>
+                                    <span>文本清洗（合并连续空行与空白）</span>
+                                </label>
+                            </div>
+                            <p class="exp-hint">
+                                推荐 300 / 50 —— 基于评估集实测最优（hit@1 69%），
+                                详见 <a href="https://github.com/Koda987/rag-knowledge/blob/main/experiments/results.md" target="_blank" rel="noopener">实验报告</a>。
+                                预览在浏览器本地完成，不消耗 API。
+                            </p>
+                        </div>
+                        <div class="preview-panel">
+                            <div class="preview-head">
+                                <span class="preview-title">分段预览</span>
+                                <span class="preview-count" id="previewCount">—</span>
+                            </div>
+                            <div class="seg-list" id="segList"><div class="zone-hint" style="padding:20px 0;">等待预览…</div></div>
                         </div>
                     </div>
-                    <div class="field" style="margin-bottom: 10px;">
-                        <label>分段重叠</label>
-                        <div class="range-row">
-                            <input type="range" class="demo-range" id="kbOverlap" min="0" max="200" step="5" value="50">
-                            <span class="rv" id="kbOverlapVal">50</span>
-                        </div>
-                        <div class="hint">默认 300 / 50 是项目实验实测最优（16 题 × 6 组参数，hit@1 69%）。按当前参数预计切为 <b id="estChunks">—</b> 块。</div>
-                    </div>
-                    <button class="demo-btn" id="btnIngest" onclick="ingest()">
-                        <svg class="ic"><use href="#i-database"/></svg> 切块并向量化入库
-                    </button>
-                    <div class="hint" style="margin-top: 8px;">入库只存本页内存（刷新还原），向量实时调用你的嵌入 Key 生成。</div>
                 </div>
 
-                <!-- 右：来源列表 -->
-                <div>
-                    <div class="slot-head" style="margin-bottom: 12px;">
-                        <svg class="ic"><use href="#i-book-open"/></svg>
-                        已入库的来源
+                <div class="wizard-panel" id="panel3">
+                    <div id="summaryBox">
+                        <div class="summary-rows" id="summaryRows"></div>
+                        <div class="process-stage" id="stage1"></div>
+                        <div class="process-stage" id="stage2"></div>
                     </div>
-                    <div class="kb-src-list" id="kbSrcList"></div>
+                    <div class="result-box ok" id="resultBox" style="display:none">
+                        <div class="r-ico" id="rIco"></div>
+                        <div class="r-title" id="rTitle"></div>
+                        <div class="r-desc" id="rDesc"></div>
+                    </div>
                 </div>
             </div>
+
+            <div class="wizard-footer">
+                <button type="button" class="btn-back" id="btnBack" onclick="prevStep()" style="visibility:hidden">← 上一步</button>
+                <button type="button" class="btn-next" id="btnNext" onclick="nextStep()" disabled>下一步：分段设置 →</button>
+            </div>
+        </div>
+
+        <!-- 统计卡 -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-icon green"><svg class="ic"><use href="#i-database"/></svg></div>
+                <h3>知识库概览</h3>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-cell">
+                    <svg class="ic"><use href="#i-layers"/></svg>
+                    <div class="stat-val" id="statChunks">—</div>
+                    <div class="stat-lbl">知识块</div>
+                </div>
+                <div class="stat-cell">
+                    <svg class="ic"><use href="#i-file-stack"/></svg>
+                    <div class="stat-val" id="statDocs">—</div>
+                    <div class="stat-lbl">来源文档</div>
+                </div>
+                <div class="stat-cell">
+                    <svg class="ic"><use href="#i-clock"/></svg>
+                    <div class="stat-val sm" id="statUpdated">—</div>
+                    <div class="stat-lbl">最近入库</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 来源列表 -->
+        <div class="card" style="margin-top: var(--space-lg);">
+            <div class="card-header">
+                <div class="card-icon purple"><svg class="ic"><use href="#i-book-open"/></svg></div>
+                <h3>已录入的来源</h3>
+            </div>
+            <div class="doc-list" id="docList"></div>
         </div>
     </div>
-</section>
+</main>
 
-<!-- ================= 第 3 步 · 提问 ================= -->
-<section id="try" class="section reveal" style="padding-top: clamp(40px, 6vw, 70px);">
-    <div class="container">
-        <div class="step-head">
-            <span class="step-badge">3</span>
-            <h2>开始提问</h2>
-            <span class="step-sub">预置示例问服装库 · 也可以问你自己刚存入的内容</span>
-        </div>
-
-        <div class="glass chat-card" style="border-radius: var(--radius-glass);">
-            <div class="dm-chips">
-                <button class="dm-chip" onclick="quickAsk('我身高178cm、体重140斤，穿什么尺码？')">我身高178cm体重140斤，穿什么尺码？</button>
-                <button class="dm-chip" onclick="quickAsk('羊毛衫能用洗衣机洗吗？')">羊毛衫能机洗吗？</button>
-                <button class="dm-chip" onclick="quickAsk('参加面试穿什么颜色好？')">面试穿什么颜色？</button>
-            </div>
-            <div class="dm-list" id="dmList">
-                <div class="dm-empty">
-                    <svg class="ic" style="width:30px;height:30px;color:var(--accent)"><use href="#i-search"/></svg><br>
-                    检索已就绪——先完成第 1 步配置，然后随便问一句
-                </div>
-            </div>
-            <div class="dm-input">
-                <textarea id="dmInput" rows="1" placeholder="问点关于尺码 / 洗涤养护 / 颜色搭配，或你自己存入的知识…"
-                          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();ask();}"></textarea>
-                <button class="dm-send" id="dmSend" onclick="ask()">发送</button>
-            </div>
-        </div>
-        <p style="text-align:center; color: var(--text-3); font-size: 12px; margin-top: 14px;">
-            回答下方的「引用」可展开命中的知识块与相似度——检索过程完全透明。
-        </p>
-    </div>
-</section>
-
-<!-- ================= 页脚 ================= -->
 <footer>
-    <div class="container">◈ Koda · 2026 · 本站已运行 <span id="siteDays">1</span> 天 · 用代码和数据说话</div>
+    ◈ 知识引擎 · 在线演示版（BYOK，界面与开源项目一致）·
+    <a href="rag.html">项目详情</a> ·
+    <a href="../index.html">返回作品集</a> ·
+    <a href="https://github.com/Koda987/rag-knowledge" target="_blank" rel="noopener">GitHub</a>
 </footer>
 
-<!-- toast 容器 -->
-<div class="demo-toast" id="toastBox"></div>
+<!-- ================= API 配置弹窗 ================= -->
+<div class="dlg-overlay" id="dlgOverlay" onclick="if(event.target===this)closeDlg()">
+    <div class="dlg">
+        <div class="dlg-head">
+            <div class="card-icon purple"><svg class="ic"><use href="#i-key"/></svg></div>
+            <h3>配置你的 API</h3>
+            <button class="dlg-close" onclick="closeDlg()">✕</button>
+        </div>
+        <div class="slot-note">
+            密钥只保存在<b>你浏览器的 localStorage</b>，请求由你的浏览器直发官方 API——本页是静态页，没有后端。
+            对话槽任选提供商；嵌入槽固定 SiliconFlow bge-m3（检索向量必须与预建索引同模型，这是 RAG 的基本约束）。
+        </div>
+        <div class="text-input-group">
+            <label>对话提供商</label>
+            <select class="wiz-select" id="provSel"></select>
+        </div>
+        <div class="text-input-group">
+            <label>对话 API 地址（OpenAI 兼容）</label>
+            <input type="text" id="chatBase" class="mono" placeholder="https://api.example.com/v1" style="font-family:var(--font-mono);font-size:12px;">
+        </div>
+        <div class="text-input-group">
+            <label>对话模型名（可改）</label>
+            <input type="text" id="chatModel" style="font-family:var(--font-mono);font-size:12px;" placeholder="model-id">
+        </div>
+        <div class="text-input-group">
+            <label>对话 API Key</label>
+            <input type="password" id="chatKey" style="font-family:var(--font-mono);font-size:12px;" placeholder="sk-…" autocomplete="off">
+            <div style="font-size:11px;color:var(--ink-subtle);margin-top:5px;" id="provHint"></div>
+        </div>
+        <div class="text-input-group">
+            <label>嵌入 Key（SiliconFlow · bge-m3）<span id="embedAuto" style="color:var(--success);font-weight:700;"></span></label>
+            <input type="password" id="embedKey" style="font-family:var(--font-mono);font-size:12px;" placeholder="sk-…" autocomplete="off">
+            <div style="font-size:11px;color:var(--ink-subtle);margin-top:5px;">
+                <a href="https://cloud.siliconflow.cn" target="_blank" rel="noopener">SiliconFlow</a> 注册送免费额度，bge-m3 嵌入免费；对话选 SiliconFlow 时只需一个 Key。
+            </div>
+        </div>
+        <div class="privacy-note">
+            <svg class="ic" style="width:15px;height:15px;"><use href="#i-shield"/></svg>
+            <span><b>隐私说明：</b>站主无法获取你的 Key；每次操作消耗你自己账户的少量额度。</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <button class="btn-next" style="padding:9px 22px;" onclick="testConn()">测试连接</button>
+            <span class="badge idle" id="connBadge">未测试</span>
+        </div>
+    </div>
+</div>
 
-<script src="../assets/site.js"></script>
+<div class="toast-container" id="toastContainer"></div>
+
 <script src="../assets/demo-index.js"></script>
 <script>
 /* ============================================================
-   BYOK RAG 演示 v2 —— 浏览器内完成：配置 → 入库 → 检索 → 生成
+   知识引擎 BYOK 演示 —— 与项目同款交互：对话 + Dify 式入库向导
    ============================================================ */
 (function () {
     'use strict';
 
-    /* ---------- 提供商预设 ---------- */
     var PROVIDERS = [
         { id: 'siliconflow', name: 'SiliconFlow 硅基流动（推荐 · 本项目同栈）',
           base: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-V4-Flash',
@@ -294,140 +801,36 @@
           base: 'https://api.openai.com/v1', model: 'gpt-4o-mini',
           hint: '国际网络环境下使用。' },
         { id: 'custom', name: '自定义（任意 OpenAI 兼容端点）',
-          base: '', model: '',
-          hint: '填入任意兼容 /chat/completions 的服务地址。' },
+          base: '', model: '', hint: '填入任意兼容 /chat/completions 的服务地址。' },
     ];
     var EMBED_BASE = 'https://api.siliconflow.cn/v1';
     var EMBED_MODEL = 'BAAI/bge-m3';
     var TOP_K = 3;
-
     var SYS_PROMPT = '你是知识库问答助手。仅依据【参考资料】回答问题，简洁、专业、分点。' +
         '如果参考资料为空或与问题无关，明确告知知识库中没有相关内容，不要编造。\n\n' +
         '【参考资料】\n{context}';
 
-    /* ---------- 状态 ---------- */
     var history = [];
-    var busy = false;
-    var customSources = [];    // 本页存入的来源 [{name, count}]
-    var estTimer = null;
+    var customSources = [];
+    var lastIngestAt = null;
 
     var $ = function (id) { return document.getElementById(id); };
     var provSel = $('provSel'), chatBase = $('chatBase'), chatModel = $('chatModel'),
         chatKey = $('chatKey'), embedKey = $('embedKey'), embedAuto = $('embedAuto'),
-        dmList = $('dmList'), dmInput = $('dmInput'), dmSend = $('dmSend'),
-        kbText = $('kbText'), kbName = $('kbName'),
-        kbSize = $('kbSize'), kbOverlap = $('kbOverlap');
+        messagesEl = $('messages'), emptyState = $('emptyState'),
+        inputEl = $('userInput'), btnSend = $('btnSend'),
+        kbText = $('kbText'), kbName = $('kbName'), pSize = $('pSize'), pOverlap = $('pOverlap');
 
-    /* ---------- toast ---------- */
+    /* ================= 通用 ================= */
     function toast(msg, type) {
-        var box = $('toastBox');
         var t = document.createElement('div');
-        t.className = 't ' + (type || '');
+        t.className = 'toast ' + (type || '');
         t.textContent = msg;
-        box.appendChild(t);
+        $('toastContainer').appendChild(t);
         setTimeout(function () {
             t.style.transition = 'opacity .3s'; t.style.opacity = '0';
             setTimeout(function () { t.remove(); }, 320);
         }, 3400);
-    }
-
-    /* ---------- 提供商初始化 ---------- */
-    PROVIDERS.forEach(function (p, i) {
-        var opt = document.createElement('option');
-        opt.value = i; opt.textContent = p.name;
-        provSel.appendChild(opt);
-    });
-    var savedProv = localStorage.getItem('demo.prov');
-    provSel.value = savedProv !== null ? savedProv : '0';
-    chatBase.value = localStorage.getItem('demo.base') || PROVIDERS[provSel.value].base;
-    chatModel.value = localStorage.getItem('demo.model') || PROVIDERS[provSel.value].model;
-    chatKey.value = localStorage.getItem('demo.chatKey') || '';
-    embedKey.value = localStorage.getItem('demo.embedKey') || '';
-    applyProv(false);
-
-    provSel.addEventListener('change', function () { applyProv(true); });
-
-    function currentProv() { return PROVIDERS[provSel.value]; }
-
-    function applyProv(resetFields) {
-        var p = currentProv();
-        if (resetFields) { chatBase.value = p.base; chatModel.value = p.model; }
-        $('provHint').textContent = p.hint || '';
-        if (p.id === 'siliconflow') {
-            embedAuto.textContent = '· 已自动复用对话 Key';
-            if (chatKey.value) { embedKey.value = chatKey.value; embedKey.disabled = true; }
-            else { embedKey.disabled = false; embedKey.placeholder = '先填左侧对话 Key，会自动带过来'; }
-        } else {
-            embedAuto.textContent = '';
-            embedKey.disabled = false;
-            embedKey.placeholder = 'sk-…';
-        }
-    }
-
-    chatKey.addEventListener('input', function () {
-        if (currentProv().id === 'siliconflow' && chatKey.value) {
-            embedKey.value = chatKey.value;
-            embedKey.disabled = true;
-        }
-    });
-
-    /* ---------- 索引状态 / 来源列表 ---------- */
-    function refreshIndexStatus() {
-        if (window.DEMO_INDEX && DEMO_INDEX.chunks && DEMO_INDEX.chunks.length) {
-            $('indexStatus').className = 'status-pill ok';
-            $('indexText').textContent = '检索就绪：' + DEMO_INDEX.chunks.length + ' 块';
-            $('kbCount').textContent = DEMO_INDEX.chunks.length + ' 个知识块 · ' +
-                DEMO_INDEX.model + ' · ' + DEMO_INDEX.chunk_size + '/' + DEMO_INDEX.chunk_overlap +
-                (customSources.length ? '（含你存入的 ' + customSources.length + ' 个来源）' : '');
-        } else {
-            $('indexStatus').className = 'status-pill err';
-            $('indexText').textContent = '索引未加载（demo-index.js 缺失）';
-            $('kbCount').textContent = '索引未加载';
-        }
-    }
-
-    function renderSources() {
-        var list = $('kbSrcList');
-        if (!window.DEMO_INDEX || !DEMO_INDEX.chunks.length) {
-            list.innerHTML = '<div class="hint">索引未加载。</div>';
-            return;
-        }
-        // 预置来源（按当前内存索引实时统计）
-        var counts = {};
-        DEMO_INDEX.chunks.forEach(function (c) {
-            counts[c.source] = (counts[c.source] || 0) + 1;
-        });
-        var customNames = {};
-        customSources.forEach(function (s) { customNames[s.name] = true; });
-        var html = Object.keys(counts).sort().map(function (name) {
-            var isCustom = customNames[name];
-            return '<div class="kb-src ' + (isCustom ? 'custom' : 'preset') + '">' +
-                '<svg class="ic"><use href="#i-book-open"/></svg>' +
-                '<span class="s-name" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</span>' +
-                '<span class="s-count">' + counts[name] + ' 块</span>' +
-                (isCustom
-                    ? '<button class="s-del" title="移除该来源" onclick="removeSource(\'' + escapeHtml(name).replace(/'/g, "\\'") + '\')"><svg class="ic"><use href="#i-trash-2"/></svg></button>'
-                    : '') +
-                '</div>';
-        }).join('');
-        list.innerHTML = html || '<div class="hint">（空）</div>';
-    }
-
-    window.removeSource = function (name) {
-        DEMO_INDEX.chunks = DEMO_INDEX.chunks.filter(function (c) { return c.source !== name; });
-        customSources = customSources.filter(function (s) { return s.name !== name; });
-        renderSources();
-        refreshIndexStatus();
-        toast('已移除「' + name + '」及其知识块', 'ok');
-    };
-
-    refreshIndexStatus();
-    renderSources();
-
-    /* ---------- 工具 ---------- */
-    function setStatus(cls, text) {
-        $('connStatus').className = 'status-pill ' + cls;
-        $('connText').textContent = text;
     }
     function escapeHtml(s) {
         var d = document.createElement('div');
@@ -448,8 +851,7 @@
     }
     function makeErr(res, tag) {
         var e = new Error(tag + '请求失败 HTTP ' + res.status);
-        e.status = res.status;
-        return e;
+        e.status = res.status; return e;
     }
     function friendlyErr(err) {
         if (err && err.status === 401) return 'API Key 无效或未填写（401）';
@@ -459,60 +861,83 @@
         return (err && err.message) || '未知错误';
     }
 
-    /* ---------- 浏览器版切块（与后端 chunking.py 同思路的演示实现） ---------- */
-    function cleanText(t) {
-        return t.replace(/\n\s*\n+/g, '\n\n').replace(/[^\S\n]+/g, ' ').trim();
-    }
-    function splitTextDemo(text, size, overlap) {
-        text = cleanText(text);
-        if (!text) return [];
-        if (text.length <= size) return [text];
-        var seps = ['\n\n', '\n', '。', '！', '？', '.', '!', '?', ' ', ''];
-        var atoms = [];
-        (function rec(t, i) {
-            if (t.length <= size) { if (t.trim()) atoms.push(t); return; }
-            while (i < seps.length) {
-                var parts = t.split(seps[i]);
-                if (parts.length > 1) {
-                    parts.forEach(function (p) { if (p) rec(p, i + 1); });
-                    return;
-                }
-                i++;
-            }
-            for (var j = 0; j < t.length; j += Math.max(1, size - overlap)) {
-                atoms.push(t.slice(j, j + size));
-            }
-        })(text, 0);
-        // 贪心合并相邻块，块间保留 overlap 重叠
-        var out = [], buf = '';
-        atoms.forEach(function (a) {
-            var cand = buf ? buf + '\n\n' + a : a;
-            if (cand.length <= size) { buf = cand; return; }
-            if (buf) out.push(buf);
-            var tail = overlap > 0 && buf ? buf.slice(-overlap) + '\n\n' : '';
-            buf = tail + a;
+    /* ================= 视图切换 ================= */
+    window.switchView = function (v) {
+        ['chat', 'kb'].forEach(function (name) {
+            $('view-' + name).classList.toggle('active', name === v);
+            var tab = name === 'chat' ? $('tabChat') : $('tabKb');
+            tab.classList.toggle('active', name === v);
         });
-        if (buf) out.push(buf);
-        return out;
-    }
+        if (v === 'kb') refreshStats();
+    };
 
-    /* 分段预估（输入/参数变化时防抖刷新） */
-    function refreshEstimate() {
-        clearTimeout(estTimer);
-        estTimer = setTimeout(function () {
-            $('kbSizeVal').textContent = kbSize.value;
-            $('kbOverlapVal').textContent = kbOverlap.value;
-            var t = kbText.value.trim();
-            $('estChunks').textContent = t ? splitTextDemo(t, +kbSize.value, +kbOverlap.value).length : '—';
-        }, 250);
-    }
-    [kbText, kbSize, kbOverlap].forEach(function (el) {
-        el.addEventListener('input', refreshEstimate);
-        if (el.type === 'range') el.addEventListener('change', refreshEstimate);
+    /* ================= API 配置 ================= */
+    PROVIDERS.forEach(function (p, i) {
+        var opt = document.createElement('option');
+        opt.value = i; opt.textContent = p.name;
+        provSel.appendChild(opt);
     });
-    refreshEstimate();
+    var savedProv = localStorage.getItem('demo.prov');
+    provSel.value = savedProv !== null ? savedProv : '0';
+    chatBase.value = localStorage.getItem('demo.base') || PROVIDERS[provSel.value].base;
+    chatModel.value = localStorage.getItem('demo.model') || PROVIDERS[provSel.value].model;
+    chatKey.value = localStorage.getItem('demo.chatKey') || '';
+    embedKey.value = localStorage.getItem('demo.embedKey') || '';
+    applyProv(false);
+    provSel.addEventListener('change', function () { applyProv(true); });
 
-    /* ---------- API ---------- */
+    function currentProv() { return PROVIDERS[provSel.value]; }
+    function applyProv(reset) {
+        var p = currentProv();
+        if (reset) { chatBase.value = p.base; chatModel.value = p.model; }
+        $('provHint').textContent = p.hint || '';
+        if (p.id === 'siliconflow') {
+            embedAuto.textContent = '· 已自动复用对话 Key';
+            if (chatKey.value) { embedKey.value = chatKey.value; embedKey.disabled = true; }
+            else { embedKey.disabled = false; }
+        } else {
+            embedAuto.textContent = '';
+            embedKey.disabled = false;
+        }
+    }
+    chatKey.addEventListener('input', function () {
+        if (currentProv().id === 'siliconflow' && chatKey.value) {
+            embedKey.value = chatKey.value; embedKey.disabled = true;
+        }
+    });
+
+    window.openDlg = function () { $('dlgOverlay').classList.add('open'); };
+    window.closeDlg = function () { $('dlgOverlay').classList.remove('open'); };
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeDlg();
+    });
+
+    function setApiBadge(state, text) {
+        var b = $('apiBadge');
+        b.className = 'badge ' + state;
+        b.textContent = text;
+    }
+
+    window.testConn = function () {
+        if (!embedKey.value.trim()) { setConn('err', '请先填写嵌入 Key'); return; }
+        setConn('idle', '测试中…');
+        embed('连接测试').then(function () {
+            setConn('ok', '连接正常 · ' + EMBED_MODEL);
+            setApiBadge('ok', 'API 已配置');
+            ['demo.embedKey|' + embedKey.value.trim(), 'demo.chatKey|' + chatKey.value.trim(),
+             'demo.prov|' + provSel.value, 'demo.base|' + chatBase.value.trim(),
+             'demo.model|' + chatModel.value.trim()].forEach(function (kv) {
+                var pair = kv.split('|');
+                localStorage.setItem(pair[0], pair[1]);
+            });
+            toast('连接正常，可以开始体验了', 'success');
+        }).catch(function (err) { setConn('err', friendlyErr(err)); });
+    };
+    function setConn(cls, text) {
+        $('connBadge').className = 'badge ' + cls;
+        $('connBadge').textContent = text;
+    }
+
     function embed(text) {
         return fetch(EMBED_BASE + '/embeddings', {
             method: 'POST',
@@ -521,11 +946,8 @@
         }).then(function (res) {
             if (!res.ok) throw makeErr(res, '嵌入');
             return res.json();
-        }).then(function (data) {
-            return data.data[0].embedding;
-        });
+        }).then(function (d) { return d.data[0].embedding; });
     }
-
     function embedBatch(texts) {
         return fetch(EMBED_BASE + '/embeddings', {
             method: 'POST',
@@ -536,15 +958,6 @@
             return res.json();
         });
     }
-
-    function retrieve(qvec) {
-        var hits = DEMO_INDEX.chunks.map(function (c) {
-            return { source: c.source, text: c.text, sim: cosine(qvec, c.vector) };
-        });
-        hits.sort(function (a, b) { return b.sim - a.sim; });
-        return hits.slice(0, TOP_K);
-    }
-
     function chatStream(messages, onDelta) {
         return fetch(chatBase.value.trim().replace(/\/$/, '') + '/chat/completions', {
             method: 'POST',
@@ -571,7 +984,7 @@
                             var j = JSON.parse(payload);
                             var d = j.choices && j.choices[0] && j.choices[0].delta && j.choices[0].delta.content;
                             if (d) onDelta(d);
-                        } catch (e) { /* 忽略无法解析的行 */ }
+                        } catch (e) { }
                     }
                     return pump();
                 });
@@ -580,136 +993,371 @@
         });
     }
 
-    /* ---------- 连接测试 ---------- */
-    window.testConn = function () {
-        if (!embedKey.value.trim()) { setStatus('err', '请先填写嵌入 Key'); return; }
-        setStatus('', '测试中…');
-        embed('连接测试').then(function () {
-            setStatus('ok', '连接正常 · ' + EMBED_MODEL);
-            localStorage.setItem('demo.embedKey', embedKey.value.trim());
-            localStorage.setItem('demo.chatKey', chatKey.value.trim());
-            localStorage.setItem('demo.prov', provSel.value);
-            localStorage.setItem('demo.base', chatBase.value.trim());
-            localStorage.setItem('demo.model', chatModel.value.trim());
-            toast('连接正常，可以开始体验了', 'ok');
-        }).catch(function (err) {
-            setStatus('err', friendlyErr(err));
+    /* ================= 浏览器版切块（与后端 chunking.py 同思路） ================= */
+    function cleanText(t) {
+        return t.replace(/\n\s*\n+/g, '\n\n').replace(/[^\S\n]+/g, ' ').trim();
+    }
+    function splitTextDemo(text, size, overlap, doClean) {
+        text = doClean === false ? text.trim() : cleanText(text);
+        if (!text) return [];
+        if (text.length <= size) return [text];
+        var seps = ['\n\n', '\n', '。', '！', '？', '.', '!', '?', ' ', ''];
+        var atoms = [];
+        (function rec(t, i) {
+            if (t.length <= size) { if (t.trim()) atoms.push(t); return; }
+            while (i < seps.length) {
+                var parts = t.split(seps[i]);
+                if (parts.length > 1) {
+                    parts.forEach(function (p) { if (p) rec(p, i + 1); });
+                    return;
+                }
+                i++;
+            }
+            for (var j = 0; j < t.length; j += Math.max(1, size - overlap)) {
+                atoms.push(t.slice(j, j + size));
+            }
+        })(text, 0);
+        var out = [], buf = '';
+        atoms.forEach(function (a) {
+            var cand = buf ? buf + '\n\n' + a : a;
+            if (cand.length <= size) { buf = cand; return; }
+            if (buf) out.push(buf);
+            var tail = overlap > 0 && buf ? buf.slice(-overlap) + '\n\n' : '';
+            buf = tail + a;
         });
-    };
-
-    /* ---------- 入库 ---------- */
-    window.ingest = function () {
-        var text = kbText.value.trim();
-        var name = kbName.value.trim() || '自定义知识';
-        if (!text) { toast('请先粘贴文本内容', 'err'); return; }
-        if (!window.DEMO_INDEX) { toast('索引未加载，无法入库', 'err'); return; }
-        if (!embedKey.value.trim()) { toast('请先在第 1 步填写嵌入 Key', 'err'); return; }
-
-        var btn = $('btnIngest');
-        btn.disabled = true; btn.textContent = '切块并向量化中…';
-
-        var chunks = splitTextDemo(text, +kbSize.value, +kbOverlap.value);
-        if (!chunks.length) {
-            btn.disabled = false; btn.innerHTML = '<svg class="ic"><use href="#i-database"/></svg> 切块并向量化入库';
-            toast('内容为空或清洗后无有效文本', 'err');
-            return;
-        }
-
-        embedBatch(chunks).then(function (data) {
-            var byIndex = {};
-            data.data.forEach(function (item) { byIndex[item.index] = item.embedding; });
-            chunks.forEach(function (c, i) {
-                if (byIndex[i]) DEMO_INDEX.chunks.push({ source: name, text: c, vector: byIndex[i] });
-            });
-            customSources.push({ name: name, count: chunks.length });
-            renderSources();
-            refreshIndexStatus();
-            kbText.value = '';
-            refreshEstimate();
-            toast('已入库 ' + chunks.length + ' 块（来源「' + name + '」），现在去第 3 步提问试试', 'ok');
-        }).catch(function (err) {
-            toast(friendlyErr(err), 'err');
-        }).then(function () {
-            btn.disabled = false;
-            btn.innerHTML = '<svg class="ic"><use href="#i-database"/></svg> 切块并向量化入库';
-        });
-    };
-
-    /* ---------- 对话 ---------- */
-    function addMsg(role, html) {
-        var empty = dmList.querySelector('.dm-empty');
-        if (empty) empty.remove();
-        var div = document.createElement('div');
-        div.className = 'dm-msg ' + (role === 'user' ? 'user' : 'ai');
-        div.innerHTML =
-            '<div class="dm-avatar">' + (role === 'user' ? '🧑' : '◈') + '</div>' +
-            '<div class="dm-bubble">' + html + '</div>';
-        dmList.appendChild(div);
-        dmList.scrollTop = dmList.scrollHeight;
-        return div.querySelector('.dm-bubble');
+        if (buf) out.push(buf);
+        return out;
     }
 
+    /* ================= 向导 ================= */
+    var wiz = { step: 1, source: null, fileText: '', fileName: '', finished: false, processing: false };
+
+    window.chooseSource = function (type) {
+        wiz.source = type;
+        $('tileFile').classList.toggle('selected', type === 'file');
+        $('tileText').classList.toggle('selected', type === 'text');
+        $('cfgFile').classList.toggle('active', type === 'file');
+        $('cfgText').classList.toggle('active', type === 'text');
+        updateNext();
+    };
+
+    window.pickFile = function (file) {
+        if (!file) return;
+        var ext = file.name.split('.').pop().toLowerCase();
+        if (!['txt','md','csv','json','xml','html','log'].includes(ext)) {
+            toast('不支持的格式：.' + ext, 'error'); return;
+        }
+        var reader = new FileReader();
+        reader.onload = function () {
+            wiz.fileText = String(reader.result || '');
+            wiz.fileName = file.name;
+            $('fileInfo').style.display = 'block';
+            $('fileName').value = file.name + '（' + wiz.fileText.length + ' 字）';
+            updateNext();
+        };
+        reader.onerror = function () { toast('读取文件失败', 'error'); };
+        reader.readAsText(file, 'utf-8');
+    };
+
+    /* 拖拽 */
+    var zone = $('uploadZone');
+    ['dragover', 'dragenter'].forEach(function (ev) {
+        zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.add('drag-over'); });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+        zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.remove('drag-over'); });
+    });
+    zone.addEventListener('drop', function (e) {
+        if (e.dataTransfer.files.length) pickFile(e.dataTransfer.files[0]);
+    });
+
+    kbText.addEventListener('input', updateNext);
+
+    function wizCanNext() {
+        if (wiz.step !== 1) return true;
+        if (wiz.source === 'file') return !!wiz.fileText;
+        if (wiz.source === 'text') return kbText.value.trim().length > 0;
+        return false;
+    }
+    function updateNext() {
+        var btn = $('btnNext');
+        if (wiz.step === 1) { btn.textContent = '下一步：分段设置 →'; btn.disabled = !wizCanNext(); }
+        else if (wiz.step === 2) { btn.textContent = '下一步：确认处理 →'; btn.disabled = false; }
+        else { btn.textContent = wiz.finished ? '✓ 完成' : '🚀 开始处理'; btn.disabled = wiz.processing; }
+    }
+
+    function syncLabels() {
+        $('valSize').textContent = pSize.value;
+        $('valOverlap').textContent = pOverlap.value;
+        var fill = function (el, min, max) {
+            el.style.setProperty('--fill', ((el.value - min) / (max - min) * 100) + '%');
+        };
+        fill(pSize, 100, 1000); fill(pOverlap, 0, 200);
+    }
+    [pSize, pOverlap, $('pClean')].forEach(function (el) {
+        el.addEventListener('input', function () { syncLabels(); runPreview(); });
+        el.addEventListener('change', function () { syncLabels(); runPreview(); });
+    });
+
+    function currentText() {
+        return wiz.source === 'file' ? wiz.fileText : kbText.value;
+    }
+    function currentName() {
+        return wiz.source === 'file'
+            ? (wiz.fileName || '文件导入')
+            : (kbName.value.trim() || '手动录入');
+    }
+
+    var lastChunks = [];
+    function runPreview() {
+        var text = currentText();
+        if (!text || !text.trim()) {
+            $('previewCount').textContent = '—';
+            $('segList').innerHTML = '<div class="zone-hint" style="padding:20px 0;">等待预览…</div>';
+            return;
+        }
+        var chunks = splitTextDemo(text, +pSize.value, +pOverlap.value, $('pClean').checked);
+        lastChunks = chunks;
+        $('previewCount').textContent = '共 ' + chunks.length + ' 段 · ' + text.length + ' 字';
+        $('segList').innerHTML = chunks.slice(0, 8).map(function (c, i) {
+            return '<div class="seg-item">' +
+                '<div class="seg-head"><span class="seg-idx">SEG #' + (i + 1) + '</span>' +
+                '<span class="seg-len">' + c.length + ' 字</span></div>' +
+                '<div class="seg-text">' + escapeHtml(c.length > 200 ? c.slice(0, 200) + '…' : c) + '</div></div>';
+        }).join('') + (chunks.length > 8 ? '<div class="zone-hint" style="padding:8px 0;">… 共 ' + chunks.length + ' 段，仅展示前 8 段</div>' : '');
+    }
+
+    function gotoStep(n) {
+        wiz.step = n;
+        if (n < 3) wiz.finished = false;
+        for (var i = 1; i <= 3; i++) {
+            $('panel' + i).classList.toggle('active', i === n);
+            var node = $('st' + i);
+            node.classList.toggle('active', i === n);
+            node.classList.toggle('done', i < n);
+        }
+        $('btnBack').style.visibility = (n === 1 || wiz.processing) ? 'hidden' : 'visible';
+        if (n === 2) { syncLabels(); runPreview(); }
+        if (n === 3) buildSummary();
+        updateNext();
+    }
+    window.nextStep = function () {
+        if (wiz.step < 3) { gotoStep(wiz.step + 1); return; }
+        if (wiz.finished) { finishWizard(); return; }
+        startProcess();
+    };
+    window.prevStep = function () {
+        if (wiz.step > 1 && !wiz.processing) gotoStep(wiz.step - 1);
+    };
+
+    function buildSummary() {
+        var rows = [
+            ['数据源', currentName()],
+            ['原文总字符', String(currentText().length)],
+            ['分段数', String(lastChunks.length || '—')],
+            ['分段参数', pSize.value + ' / ' + pOverlap.value + ($('pClean').checked ? ' · 清洗' : '')],
+        ];
+        $('summaryRows').innerHTML = rows.map(function (r) {
+            return '<div class="summary-row"><span class="k">' + escapeHtml(r[0]) +
+                '</span><span class="v">' + escapeHtml(r[1]) + '</span></div>';
+        }).join('');
+        setStage(1, 'pending'); setStage(2, 'pending');
+        $('resultBox').style.display = 'none';
+        $('summaryBox').style.display = 'block';
+    }
+    function setStage(n, state) {
+        var el = $('stage' + n);
+        el.className = 'process-stage' + (state === 'pending' ? '' : ' ' + state);
+        var icon = state === 'done'
+            ? '<svg class="ic"><use href="#i-circle-check"/></svg>'
+            : (n === 1 ? '<svg class="ic"><use href="#i-scissors"/></svg>'
+                       : '<svg class="ic"><use href="#i-database"/></svg>');
+        el.innerHTML = icon +
+            (state === 'active' ? '<span class="spinner"></span>' : '') +
+            '<span>' + (n === 1 ? '文本切块' : '向量化入库（调用你的嵌入 API）') + '</span>';
+    }
+
+    function startProcess() {
+        if (wiz.processing) return;
+        if (!embedKey.value.trim()) {
+            toast('请先点击右上角「API 配置」填写嵌入 Key', 'error');
+            openDlg(); return;
+        }
+        wiz.processing = true;
+        $('btnBack').style.visibility = 'hidden';
+        $('btnNext').disabled = true; $('btnNext').textContent = '处理中…';
+
+        setStage(1, 'active');
+        setTimeout(function () {
+            setStage(1, 'done');
+            setStage(2, 'active');
+            var name = currentName();
+            embedBatch(lastChunks).then(function (data) {
+                var byIndex = {};
+                data.data.forEach(function (item) { byIndex[item.index] = item.embedding; });
+                lastChunks.forEach(function (c, i) {
+                    if (byIndex[i]) DEMO_INDEX.chunks.push({ source: name, text: c, vector: byIndex[i] });
+                });
+                customSources.push(name);
+                lastIngestAt = new Date();
+                setStage(2, 'done');
+                $('summaryBox').style.display = 'none';
+                var box = $('resultBox');
+                box.style.display = 'block';
+                box.className = 'result-box ok';
+                $('rIco').innerHTML = '<svg class="ic" style="color:var(--success)"><use href="#i-circle-check"/></svg>';
+                $('rTitle').textContent = '处理完成：' + lastChunks.length + ' 个知识块入库';
+                $('rDesc').textContent = '来源「' + name + '」· 去对话页问问它吧';
+                toast('已入库 ' + lastChunks.length + ' 块', 'success');
+                refreshStats(); renderDocs();
+                wiz.processing = false; wiz.finished = true;
+                updateNext();
+            }).catch(function (err) {
+                setStage(2, 'pending');
+                toast(friendlyErr(err), 'error');
+                wiz.processing = false;
+                updateNext();
+                $('btnBack').style.visibility = 'visible';
+            });
+        }, 450);
+    }
+    function finishWizard() {
+        wiz.source = null; wiz.fileText = ''; wiz.fileName = '';
+        $('fileInfo').style.display = 'none';
+        kbText.value = '';
+        ['tileFile', 'tileText'].forEach(function (id) { $(id).classList.remove('selected'); });
+        ['cfgFile', 'cfgText'].forEach(function (id) { $(id).classList.remove('active'); });
+        gotoStep(1);
+    }
+
+    /* ================= 统计 / 来源 ================= */
+    function refreshStats() {
+        if (!window.DEMO_INDEX || !DEMO_INDEX.chunks.length) {
+            $('statChunks').textContent = '—'; $('statDocs').textContent = '—';
+            $('statUpdated').textContent = '—'; return;
+        }
+        var counts = {};
+        DEMO_INDEX.chunks.forEach(function (c) { counts[c.source] = (counts[c.source] || 0) + 1; });
+        $('statChunks').textContent = DEMO_INDEX.chunks.length;
+        $('statDocs').textContent = Object.keys(counts).length;
+        $('statUpdated').textContent = lastIngestAt
+            ? lastIngestAt.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) + '（你存入的）'
+            : '预置';
+    }
+    function renderDocs() {
+        var counts = {};
+        if (window.DEMO_INDEX) {
+            DEMO_INDEX.chunks.forEach(function (c) { counts[c.source] = (counts[c.source] || 0) + 1; });
+        }
+        var custom = {};
+        customSources.forEach(function (n) { custom[n] = true; });
+        var names = Object.keys(counts).sort();
+        $('docList').innerHTML = names.length ? names.map(function (n) {
+            return '<div class="doc-item' + (custom[n] ? ' custom' : '') + '">' +
+                '<svg class="ic"><use href="#i-book-open"/></svg>' +
+                '<span class="doc-name" title="' + escapeHtml(n) + '">' + escapeHtml(n) + '</span>' +
+                '<span class="doc-meta">' + counts[n] + ' 块</span>' +
+                (custom[n]
+                    ? '<button class="doc-del" title="移除" onclick="removeSource(\'' + escapeHtml(n).replace(/'/g, "\\'") + '\')"><svg class="ic"><use href="#i-trash-2"/></svg></button>'
+                    : '') +
+                '</div>';
+        }).join('') : '<div class="zone-hint" style="padding:16px 0;">知识库为空</div>';
+    }
+    window.removeSource = function (name) {
+        DEMO_INDEX.chunks = DEMO_INDEX.chunks.filter(function (c) { return c.source !== name; });
+        customSources = customSources.filter(function (n) { return n !== name; });
+        renderDocs(); refreshStats();
+        toast('已移除「' + name + '」', 'success');
+    };
+    refreshStats(); renderDocs();
+    if (chatKey.value && embedKey.value) setApiBadge('ok', 'API 已配置');
+
+    /* ================= 对话 ================= */
+    function addMsg(role, html) {
+        var empty = emptyState;
+        if (empty.style.display !== 'none') { empty.style.display = 'none'; messagesEl.style.display = 'flex'; }
+        var div = document.createElement('div');
+        div.className = 'msg ' + role;
+        div.innerHTML =
+            '<div class="msg-avatar">' + (role === 'user' ? '🧑' : '◈') + '</div>' +
+            '<div class="msg-body"><div class="msg-bubble">' + html + '</div></div>';
+        messagesEl.appendChild(div);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        return div.querySelector('.msg-bubble');
+    }
     function citeBlock(hits) {
         var items = hits.map(function (h) {
-            return '<div class="dm-cite-item">' +
-                '<div class="dm-cite-head"><span class="dm-cite-src">' + escapeHtml(h.source) +
-                '</span><span class="dm-cite-sim">相似度 ' + (h.sim * 100).toFixed(1) + '%</span></div>' +
+            return '<div class="cite-item">' +
+                '<div class="cite-head"><span class="cite-src">' + escapeHtml(h.source) +
+                '</span><span class="cite-sim">相似度 ' + (h.sim * 100).toFixed(1) + '%</span></div>' +
                 escapeHtml(h.text.length > 120 ? h.text.slice(0, 120) + '…' : h.text) + '</div>';
         }).join('');
         var div = document.createElement('div');
-        div.className = 'dm-cite';
+        div.className = 'cite';
         div.innerHTML = '<button type="button">📚 引用 ' + hits.length + ' 个知识块 · 点击展开</button>' +
-            '<div class="dm-cite-body">' + items + '</div>';
-        div.querySelector('button').addEventListener('click', function () {
-            div.classList.toggle('open');
-        });
+            '<div class="cite-body">' + items + '</div>';
+        div.querySelector('button').addEventListener('click', function () { div.classList.toggle('open'); });
         return div;
     }
 
-    window.quickAsk = function (q) { dmInput.value = q; window.ask(); };
+    window.quickAsk = function (q) { inputEl.value = q; window.ask(); };
 
     window.ask = function () {
-        var q = dmInput.value.trim();
-        if (!q || busy) return;
-
-        if (!window.DEMO_INDEX || !DEMO_INDEX.chunks.length) { addMsg('ai', '⚠️ 知识库为空或索引未加载。'); return; }
+        var q = inputEl.value.trim();
+        if (!q || btnSend.disabled) return;
+        if (!window.DEMO_INDEX || !DEMO_INDEX.chunks.length) {
+            addMsg('assistant', '⚠️ 知识库为空——先去「知识库」页存入一些内容。'); return;
+        }
         if (!embedKey.value.trim() || !chatKey.value.trim() || !chatBase.value.trim() || !chatModel.value.trim()) {
-            addMsg('ai', '⚠️ 请先在第 1 步补全两个 Key 与对话模型信息。'); return;
+            openDlg();
+            toast('请先完成 API 配置（两个 Key + 对话模型）', 'error'); return;
         }
 
-        busy = true; dmSend.disabled = true; dmSend.textContent = '回答中…';
-        dmInput.value = '';
+        btnSend.disabled = true; btnSend.textContent = '回答中…';
+        inputEl.value = '';
         addMsg('user', escapeHtml(q));
+
+        var typing = document.createElement('div');
+        typing.className = 'msg assistant';
+        typing.innerHTML = '<div class="msg-avatar">◈</div><div class="msg-body"><div class="msg-bubble">' +
+            '<div class="typing-dots"><span></span><span></span><span></span></div></div></div>';
+        messagesEl.appendChild(typing);
 
         var bubble = null, full = '', hits = null;
 
         embed(q).then(function (qv) {
-            hits = retrieve(qv);
-            var ctx = hits.map(function (h, i) {
-                return (i + 1) + '. 「' + h.source + '」' + h.text;
-            }).join('\n\n');
-            var messages = [{ role: 'system', content: SYS_PROMPT.replace('{context}', ctx) }]
-                .concat(history.slice(-6))
-                .concat([{ role: 'user', content: q }]);
-            return chatStream(messages, function (delta) {
+            var all = DEMO_INDEX.chunks.map(function (c) {
+                return { source: c.source, text: c.text, sim: cosine(qv, c.vector) };
+            });
+            all.sort(function (a, b) { return b.sim - a.sim; });
+            hits = all.slice(0, TOP_K);
+            typing.remove();
+            var ctx = hits.map(function (h, i) { return (i + 1) + '. 「' + h.source + '」' + h.text; }).join('\n\n');
+            var msgs = [{ role: 'system', content: SYS_PROMPT.replace('{context}', ctx) }]
+                .concat(history.slice(-6)).concat([{ role: 'user', content: q }]);
+            return chatStream(msgs, function (delta) {
                 full += delta;
-                if (!bubble) bubble = addMsg('ai', mdLite(full));
+                if (!bubble) bubble = addMsg('assistant', mdLite(full));
                 else bubble.innerHTML = mdLite(full);
-                dmList.scrollTop = dmList.scrollHeight;
+                messagesEl.scrollTop = messagesEl.scrollHeight;
             });
         }).then(function () {
-            if (!bubble) bubble = addMsg('ai', '（模型返回了空内容）');
-            else bubble.innerHTML = mdLite(full || '（空回复）');
-            if (hits) bubble.appendChild(citeBlock(hits));
+            if (bubble) {
+                bubble.innerHTML = mdLite(full || '（空回复）');
+                if (hits) bubble.appendChild(citeBlock(hits));
+            } else {
+                addMsg('assistant', '（模型返回了空内容）');
+            }
             history.push({ role: 'user', content: q });
             history.push({ role: 'assistant', content: full });
             if (history.length > 8) history = history.slice(-8);
         }).catch(function (err) {
+            typing.remove();
             if (bubble) bubble.innerHTML += '<br><br>⚠️ ' + escapeHtml(friendlyErr(err));
-            else addMsg('ai', '⚠️ ' + escapeHtml(friendlyErr(err)));
+            else addMsg('assistant', '⚠️ ' + escapeHtml(friendlyErr(err)));
         }).then(function () {
-            busy = false; dmSend.disabled = false; dmSend.textContent = '发送';
-            dmInput.focus();
+            btnSend.disabled = false; btnSend.textContent = '发送';
+            inputEl.focus();
         });
     };
 })();
