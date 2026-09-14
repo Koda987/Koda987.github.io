@@ -1322,6 +1322,7 @@
         typing.innerHTML = '<div class="msg-avatar">◈</div><div class="msg-body"><div class="msg-bubble">' +
             '<div class="typing-dots"><span></span><span></span><span></span></div></div></div>';
         messagesEl.appendChild(typing);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
 
         var bubble = null, full = '', hits = null;
 
@@ -1331,17 +1332,22 @@
             });
             all.sort(function (a, b) { return b.sim - a.sim; });
             hits = all.slice(0, TOP_K);
-            typing.remove();
             var ctx = hits.map(function (h, i) { return (i + 1) + '. 「' + h.source + '」' + h.text; }).join('\n\n');
             var msgs = [{ role: 'system', content: SYS_PROMPT.replace('{context}', ctx) }]
                 .concat(history.slice(-6)).concat([{ role: 'user', content: q }]);
             return chatStream(msgs, function (delta) {
                 full += delta;
-                if (!bubble) bubble = addMsg('assistant', mdLite(full));
-                else bubble.innerHTML = mdLite(full);
+                if (!bubble) {
+                    // 首个 token 到达才撤掉加载动画——覆盖检索+模型起跑的整段等待
+                    typing.remove();
+                    bubble = addMsg('assistant', mdLite(full));
+                } else {
+                    bubble.innerHTML = mdLite(full);
+                }
                 messagesEl.scrollTop = messagesEl.scrollHeight;
             });
         }).then(function () {
+            if (typing.parentNode) typing.remove();   // 空回复兜底
             if (bubble) {
                 bubble.innerHTML = mdLite(full || '（空回复）');
                 if (hits) bubble.appendChild(citeBlock(hits));
