@@ -5,19 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Koda — LLM 应用开发 · AI 产品</title>
     <meta name="description" content="Koda 的作品集：RAG 知识库问答系统——从课程原型到工程化演进，SSE 流式、会话管理、数据驱动调参。">
-    <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+    <link rel="icon" type="image/png" href="assets/favicon.png">
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
     <link rel="stylesheet" href="assets/style.css">
+    <style>
+        /* 仅首页：首屏卡片压住不动，site.js 按每张 180ms 的节奏逐张释放
+           （reduced-motion 直接显示；此兜底 1.2 秒后强制解除） */
+        @media (prefers-reduced-motion: no-preference) {
+            body.boot-hold .bento .reveal {
+                opacity: 0 !important;
+                transform: translateY(22px) scale(0.94) !important;
+                transition: none !important;
+            }
+            body.boot-hold .hero-logo,
+            body.boot-hold .hero .eyebrow,
+            body.boot-hold .hero h1,
+            body.boot-hold .hero .sub,
+            body.boot-hold .hero-links { animation-play-state: paused; }
+        }
+    </style>
 </head>
-<body>
+<body class="boot-hold">
+
+<!-- 安全兜底：即使 site.js 出错，1.2 秒后也强制显示内容 -->
+<script>setTimeout(function () { document.body.classList.remove('boot-hold'); }, 1200);</script>
 
 <!-- ================= 导航 ================= -->
 <nav class="nav">
     <div class="nav-inner">
         <a href="#top" class="nav-brand">
-            <img src="assets/logo.svg" alt="" class="logo-img">
+            <img src="assets/logo.png" alt="" class="logo-img">
             Koda
         </a>
         <div class="nav-links">
+            <span class="nav-pill" aria-hidden="true"></span>
             <a href="#projects" class="nav-link">项目</a>
             <a href="#skills" class="nav-link hide-m">技能</a>
             <a href="#about" class="nav-link">关于</a>
@@ -27,15 +48,71 @@
     </div>
 </nav>
 
-<!-- ================= Hero ================= -->
+<!-- ================= Hero：Bento 仪表盘 ================= -->
 <header class="hero container" id="top">
-    <img src="assets/logo.svg" alt="Koda" class="hero-logo">
-    <p class="eyebrow">2027 届 · LLM 应用开发 / AI 产品 · 求职实习中</p>
-    <h1>Koda</h1>
-    <p class="sub" data-typing>把大模型能力落成能用的产品。</p>
-    <div class="hero-links">
-        <a href="#projects" class="arrow-link">查看项目</a>
-        <a href="https://github.com/Koda987" target="_blank" rel="noopener">GitHub ↗</a>
+    <div class="bento">
+
+        <!-- 主卡：身份 + 打字机 -->
+        <div class="cell cell-main glass reveal">
+            <img src="assets/logo.png" alt="Koda" class="hero-logo">
+            <p class="eyebrow">2027 届 · LLM 应用开发 / AI 产品</p>
+            <h1>Koda</h1>
+            <p class="sub" data-typing>把大模型能力落成能用的产品。</p>
+            <div class="hero-links">
+                <a href="#projects" class="arrow-link">查看项目</a>
+                <a href="https://github.com/Koda987" target="_blank" rel="noopener">GitHub ↗</a>
+            </div>
+            <p class="status-pill"><span class="pulse-dot" aria-hidden="true"></span>求职实习中 · 随时可以聊聊</p>
+        </div>
+
+        <!-- 实时时钟 + 时段问候 -->
+        <div class="cell cell-time glass reveal">
+            <div class="cell-time-main">
+                <span class="cell-chip" style="--chip:#3b82f6"><img src="assets/icons/clock.svg" alt=""></span>
+                <p class="cell-label">本地时间</p>
+                <p class="cell-clock" id="heroClock">--:--</p>
+                <p class="cell-sub" id="heroDate">——</p>
+            </div>
+            <div class="cell-greet">
+                <span class="greet-en" id="greetEn">Good Day</span>
+                <span class="greet-zh" id="greetZh">你好</span>
+            </div>
+        </div>
+
+        <!-- 技术栈 -->
+        <div class="cell glass reveal">
+            <span class="cell-chip" style="--chip:#5b4fcf"><img src="assets/icons/book-open.svg" alt=""></span>
+            <p class="cell-label">主武器</p>
+            <p class="cell-strong">RAG 检索增强</p>
+            <p class="cell-sub">LangChain · ChromaDB · SSE 流式输出</p>
+        </div>
+
+        <!-- 精选项目入口（宽卡：左文右箭头） -->
+        <a class="cell cell-link cell-project glass reveal" href="projects/rag.html">
+            <span class="cell-chip" style="--chip:#ec4899"><img src="assets/icons/rocket.svg" alt=""></span>
+            <span class="cell-project-body">
+                <span class="cell-label">精选项目</span>
+                <span class="cell-strong">智能知识库问答系统</span>
+                <span class="cell-sub">SSE 流式输出 · 多会话管理 · 数据驱动调参</span>
+            </span>
+            <span class="cell-go-big" aria-hidden="true">→</span>
+        </a>
+
+        <!-- 站点运行天数 -->
+        <div class="cell glass reveal">
+            <span class="cell-chip" style="--chip:#f59e0b"><img src="assets/icons/flame.svg" alt=""></span>
+            <p class="cell-label">本站已运行</p>
+            <p class="cell-strong"><span id="siteDays">1</span> 天</p>
+            <p class="cell-sub">用代码和数据说话</p>
+        </div>
+
+        <!-- GitHub -->
+        <a class="cell cell-link glass reveal" href="https://github.com/Koda987" target="_blank" rel="noopener">
+            <span class="cell-chip" style="--chip:#111827"><img src="assets/icons/github.svg" alt=""></span>
+            <p class="cell-label">GitHub</p>
+            <p class="cell-strong">@Koda987</p>
+            <p class="cell-sub">欢迎翻我的 git log，就是我的学习轨迹 ↗</p>
+        </a>
     </div>
 </header>
 
@@ -53,12 +130,25 @@
             <a href="projects/rag.html" class="project-card">
                 <div class="card-cover">
                     <img src="assets/shot-chat.png" alt="RAG 知识库问答系统"
-                         onerror="this.remove(); this.closest('.card-cover').insertAdjacentHTML('afterbegin','<div class=ph><span class=big>💬</span>项目截图待替换<br><small>assets/shot-chat.png</small></div>');">
+                         onerror="var c=this.closest('.card-cover'); this.remove(); c.insertAdjacentHTML('afterbegin','<div class=ph><span class=big>💬</span>项目截图待替换<br><small>assets/shot-chat.png</small></div>');">
                 </div>
                 <div class="card-body">
                     <h3>智能知识库问答系统</h3>
                     <p class="desc">基于 LangChain + ChromaDB 的 RAG 应用：SSE 流式输出、多会话管理、数据驱动调参。</p>
                     <p class="tech">Python · LangChain · FastAPI · ChromaDB · SSE</p>
+                    <span class="go arrow-link">查看详情</span>
+                </div>
+            </a>
+
+            <a href="projects/boom-arcade.html" class="project-card">
+                <div class="card-cover">
+                    <img src="assets/shot-arcade.png" alt="BoomArcade 街机乐园"
+                         onerror="var c=this.closest('.card-cover'); this.remove(); c.insertAdjacentHTML('afterbegin','<div class=ph><span class=big>🎮</span>项目截图待替换<br><small>assets/shot-arcade.png</small></div>');">
+                </div>
+                <div class="card-body">
+                    <h3>BoomArcade · 街机乐园</h3>
+                    <p class="desc">4 款小游戏的在线街机：账号体系、最高分排行榜、管理后台，全栈部署在一台树莓派上。</p>
+                    <p class="tech">Java · Jakarta Servlet 6 · JSP · MySQL · AI 辅助开发</p>
                     <span class="go arrow-link">查看详情</span>
                 </div>
             </a>

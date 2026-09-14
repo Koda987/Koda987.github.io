@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>智能知识库问答系统 — Koda</title>
     <meta name="description" content="基于 LangChain + ChromaDB 的 RAG 知识库问答系统：SSE 流式输出、多会话管理、chunk 参数实验（300/50 实测最优）。">
-    <link rel="icon" type="image/svg+xml" href="../assets/logo.svg">
+    <link rel="icon" type="image/png" href="../assets/favicon.png">
+    <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
     <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
@@ -14,7 +15,7 @@
 <nav class="nav">
     <div class="nav-inner">
         <a href="../index.html" class="nav-brand">
-            <img src="../assets/logo.svg" alt="" class="logo-img">
+            <img src="../assets/logo.png" alt="" class="logo-img">
             Koda
         </a>
         <div class="nav-links">
@@ -29,7 +30,7 @@
 
 <!-- ================= Hero ================= -->
 <header class="hero container" id="top">
-    <img src="../assets/logo.svg" alt="Koda" class="hero-logo">
+    <img src="../assets/logo.png" alt="Koda" class="hero-logo">
     <p class="eyebrow">项目 01 · RAG 应用</p>
     <h1 style="font-size: clamp(2.4rem, 6.5vw, 4.2rem);">智能知识库问答系统</h1>
     <p class="sub">上传文档自动入库，语义检索，流式逐字回答。<br>从课程原型出发，独立完成一次完整的工程化演进。</p>
@@ -81,7 +82,7 @@
         <figure class="shot">
             <div class="shot-frame">
                 <img src="../assets/shot-chat.png" alt="对话页：流式输出"
-                     onerror="this.remove(); this.closest('.shot-frame').insertAdjacentHTML('afterbegin','<div class=ph><span class=big>💬</span>对话页 · 流式输出<br>待替换截图<br><small>assets/shot-chat.png</small></div>');">
+                     onerror="var c=this.closest('.shot-frame'); this.remove(); c.insertAdjacentHTML('afterbegin','<div class=ph><span class=big>💬</span>对话页 · 流式输出<br>待替换截图<br><small>assets/shot-chat.png</small></div>');">
             </div>
             <figcaption>对话页 · SSE 流式逐字渲染</figcaption>
         </figure>
@@ -89,7 +90,7 @@
         <figure class="shot">
             <div class="shot-frame">
                 <img src="../assets/shot-sessions.png" alt="会话列表抽屉"
-                     onerror="this.remove(); this.closest('.shot-frame').insertAdjacentHTML('afterbegin','<div class=ph><span class=big>🗂</span>会话列表抽屉<br>待替换截图<br><small>assets/shot-sessions.png</small></div>');">
+                     onerror="var c=this.closest('.shot-frame'); this.remove(); c.insertAdjacentHTML('afterbegin','<div class=ph><span class=big>🗂</span>会话列表抽屉<br>待替换截图<br><small>assets/shot-sessions.png</small></div>');">
             </div>
             <figcaption>会话管理 · 列表抽屉，标题自动取首问</figcaption>
         </figure>
@@ -97,7 +98,7 @@
         <figure class="shot">
             <div class="shot-frame">
                 <img src="../assets/shot-kb.png" alt="知识库管理页"
-                     onerror="this.remove(); this.closest('.shot-frame').insertAdjacentHTML('afterbegin','<div class=ph><span class=big>📊</span>知识库管理页<br>待替换截图<br><small>assets/shot-kb.png</small></div>');">
+                     onerror="var c=this.closest('.shot-frame'); this.remove(); c.insertAdjacentHTML('afterbegin','<div class=ph><span class=big>📊</span>知识库管理页<br>待替换截图<br><small>assets/shot-kb.png</small></div>');">
             </div>
             <figcaption>知识库 · 上传去重 + 实时统计</figcaption>
         </figure>
