@@ -491,6 +491,7 @@
         }
         .toast.error { border-left-color: var(--error); }
         .toast.success { border-left-color: var(--success); }
+        .toast.warn { border-left-color: var(--warning); }
         @keyframes slideIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
 
         footer {
@@ -814,6 +815,13 @@ var AT_IMG = '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACA
     var history = [];
     var customSources = [];
     var lastIngestAt = null;
+    var docHashes = [          // 内容指纹去重（对齐后端 MD5 机制；删除文档时同步清除）
+        // 预置语料（demo-index.js 的 3 篇源文档）的指纹，与原文件字节内容一致
+        { hash: '52ea3fa38903afc73f76c94519c8b2a98210dfe068c894866242ba8680138232', source: '尺码推荐.txt' },
+        { hash: '42e6ef6932f619846a2b8938ec998cc1d69eade03ca25bc6f61fac4630555850', source: '洗涤养护.txt' },
+        { hash: '465e5f2c4554972b2f15e9e8e61494c491ed7a92bfdba9aa1509737ba36c8911', source: '颜色选择.txt' },
+    ];
+    var pendingHash = null;  // 本轮待入库内容的指纹（入库成功后登记）
 
     var $ = function (id) { return document.getElementById(id); };
     var provSel = $('provSel'), chatBase = $('chatBase'), chatModel = $('chatModel'),
@@ -860,6 +868,25 @@ var AT_IMG = '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACA
         if (err && err.status === 429) return '请求过于频繁，稍等再试（429）';
         if (err instanceof TypeError) return '网络失败或该 API 不允许浏览器直连（CORS）——建议改用 SiliconFlow';
         return (err && err.message) || '未知错误';
+    }
+    function hashText(text) {
+        // 内容指纹：与后端 MD5 去重同思路。优先 SHA-256（安全上下文），
+        // file:// 等非安全上下文回退 FNV-1a（演示用途足够）
+        try {
+            if (window.crypto && crypto.subtle && crypto.subtle.digest) {
+                return crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(function (buf) {
+                    return Array.prototype.map.call(new Uint8Array(buf), function (b) {
+                        return ('0' + b.toString(16)).slice(-2);
+                    }).join('');
+                });
+            }
+        } catch (e) { /* fallthrough */ }
+        var h = 0x811c9dc5;
+        for (var i = 0; i < text.length; i++) {
+            h ^= text.charCodeAt(i);
+            h = (h * 0x01000193) >>> 0;
+        }
+        return Promise.resolve(('0000000' + h.toString(16)).slice(-8));
     }
 
     /* ================= 视图切换 ================= */
@@ -1180,16 +1207,42 @@ var AT_IMG = '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACA
 
     function startProcess() {
         if (wiz.processing) return;
-        if (!embedKey.value.trim()) {
-            toast('请先点击右上角「API 配置」填写嵌入 Key', 'error');
-            openDlg(); return;
-        }
         wiz.processing = true;
         $('btnBack').style.visibility = 'hidden';
         $('btnNext').disabled = true; $('btnNext').textContent = '处理中…';
 
-        setStage(1, 'active');
-        setTimeout(function () {
+        // 与后端 knowledge_base_service 一致：切块/向量化之前先做内容指纹查重，
+        // 重复内容直接跳过（不调嵌入 API、不入库）。查重不依赖 API Key，
+        // 所以必须排在 Key 校验之前——否则没配 Key 时重复内容也弹配置窗。
+        hashText(currentText()).then(function (hex) {
+            var dup = null;
+            for (var i = 0; i < docHashes.length; i++) {
+                if (docHashes[i].hash === hex) { dup = docHashes[i]; break; }
+            }
+            if (dup) {
+                $('summaryBox').style.display = 'none';
+                var box = $('resultBox');
+                box.style.display = 'block';
+                box.className = 'result-box skip';
+                $('rIco').innerHTML = '<svg class="ic" style="color:var(--warning)"><use href="#i-triangle-alert"/></svg>';
+                $('rTitle').textContent = '内容已存在于知识库中，已跳过入库';
+                $('rDesc').textContent = '重复检测命中指纹 ' + hex.slice(0, 8) + '…（与「' + dup.source + '」内容一致）';
+                toast('内容已存在，已跳过入库', 'warn');
+                wiz.processing = false; wiz.finished = true;
+                updateNext();
+                return;
+            }
+            if (!embedKey.value.trim()) {
+                toast('请先点击右上角「API 配置」填写嵌入 Key', 'error');
+                openDlg();
+                wiz.processing = false;
+                updateNext();
+                $('btnBack').style.visibility = 'visible';
+                return;
+            }
+            pendingHash = hex;
+            setStage(1, 'active');
+            setTimeout(function () {
             setStage(1, 'done');
             setStage(2, 'active');
             var name = currentName();
@@ -1200,6 +1253,7 @@ var AT_IMG = '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACA
                     if (byIndex[i]) DEMO_INDEX.chunks.push({ source: name, text: c, vector: byIndex[i] });
                 });
                 customSources.push(name);
+                docHashes.push({ hash: pendingHash, source: name });
                 lastIngestAt = new Date();
                 setStage(2, 'done');
                 $('summaryBox').style.display = 'none';
@@ -1221,6 +1275,7 @@ var AT_IMG = '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACA
                 $('btnBack').style.visibility = 'visible';
             });
         }, 450);
+        });
     }
     function finishWizard() {
         wiz.source = null; wiz.fileText = ''; wiz.fileName = '';
@@ -1266,6 +1321,7 @@ var AT_IMG = '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACA
     }
     window.removeSource = function (name) {
         DEMO_INDEX.chunks = DEMO_INDEX.chunks.filter(function (c) { return c.source !== name; });
+        docHashes = docHashes.filter(function (h) { return h.source !== name; });
         customSources = customSources.filter(function (n) { return n !== name; });
         renderDocs(); refreshStats();
         toast('已移除「' + name + '」', 'success');
