@@ -163,6 +163,41 @@
         daysEl.textContent = Math.max(1, Math.ceil((Date.now() - new Date(2026, 8, 14)) / 86400000));
     }
 
+    /* ---------- 7.1 GitHub 提交总数（实时拉取 + 本地缓存兜底） ----------
+       匿名调用 GitHub API（60 次/小时/IP 够用）；用 per_page=1 的
+       Link 尾页号精确计数；限流/断网时回退 localStorage 缓存值 */
+    var commitEl = document.getElementById('commitCount');
+    if (commitEl) {
+        var cachedCommits = localStorage.getItem('gh-commit-total');
+        if (cachedCommits) commitEl.textContent = cachedCommits;
+        (function () {
+            var repos = ['rag-knowledge', 'ai-riddle', 'Open-ClaudeCode'];
+            var settled = 0, total = 0;
+            function finish() {
+                if (settled === repos.length && total > 0) {
+                    commitEl.textContent = total;
+                    localStorage.setItem('gh-commit-total', total);
+                }
+            }
+            repos.forEach(function (repo) {
+                fetch('https://api.github.com/repos/Koda987/' + repo + '/commits?per_page=1')
+                    .then(function (res) {
+                        if (!res.ok) throw new Error(res.status);
+                        var link = res.headers.get('Link');
+                        var m = link && link.match(/[?&]page=(\d+)>;\s*rel="last"/);
+                        if (m) { total += parseInt(m[1], 10); settled++; finish(); }
+                        else {
+                            // 无 Link 头：仓库提交数 ≤1，读 body 精确判断 0/1
+                            return res.json().then(function (arr) {
+                                total += arr.length ? 1 : 0; settled++; finish();
+                            });
+                        }
+                    })
+                    .catch(function () { settled++; finish(); });
+            });
+        })();
+    }
+
     console.log(
         '%c◈ Koda%c\n' +
         '正在寻找 LLM 应用开发 / AI 产品实习\n' +
