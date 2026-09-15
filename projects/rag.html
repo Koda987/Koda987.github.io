@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>智能知识库问答系统 — Koda</title>
-    <meta name="description" content="基于 LangChain + ChromaDB 的 RAG 知识库问答系统：SSE 流式输出、多会话管理、chunk 参数实验（300/50 实测最优）。">
+    <meta name="description" content="基于 LangChain + ChromaDB 的 RAG 知识库问答系统：SSE 流式输出、多会话管理、评估集实验与嵌入兼容性修复（hit@1 69% → 100%）。">
     <link rel="icon" type="image/png" href="../assets/favicon.png">
     <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
     <link rel="stylesheet" href="../assets/style.css">
@@ -60,12 +60,12 @@
                 <p>会话摘要接口 + 抽屉式列表：标题自动取首条提问、单条删除、记住上次会话。对话历史按会话持久化，刷新即恢复。</p>
             </div>
             <div class="spec">
-                <h3>数据驱动调参</h3>
-                <p>自建 16 题评估集，扫描 6 组 chunk 参数，用 hit@1 / MRR 说话——"参数怎么定"不靠背，靠实验数据。</p>
+                <h3>评估集驱动的实验</h3>
+                <p>自建 16 题评估集，6 组参数两轮扫描。第二轮暴露异常信号，顺藤摸瓜定位嵌入兼容性 bug——实验不止回答"参数怎么定"，还揪出了看不见的底层问题。</p>
             </div>
             <div class="spec">
                 <h3>排查与修复</h3>
-                <p>定位 async 路由中 Django ORM 的静默失败（保护异常被 except 吞掉数月）；修复 session_id 路径穿越风险，存储层与路由层双重校验。</p>
+                <p>三角验证定位 langchain 向第三方嵌入接口发送 token id 的兼容性问题（同文本向量余弦仅 0.29，修复后检索全对）；async 路由 ORM 静默失败；session_id 路径穿越双重校验。</p>
             </div>
         </div>
     </div>
@@ -110,43 +110,45 @@
     <div class="container">
         <div class="sec-head" style="text-align: center; margin-bottom: clamp(48px, 6vw, 72px);">
             <p class="sec-eyebrow">Experiment</p>
-            <h2 class="sec-title">数据驱动调参</h2>
-            <p class="sec-sub">chunk 参数扫描实验 · 6 组参数 × 16 题评估集（含大量换述题）</p>
+            <h2 class="sec-title">两轮实验，一个真相</h2>
+            <p class="sec-sub">6 组 chunk 参数 × 16 题评估集 × 嵌入修复前后两轮对照</p>
         </div>
 
         <div class="stats-row">
             <div class="stat reveal">
-                <div class="num"><span class="cnt" data-target="69">0</span><em>%</em></div>
-                <div class="cap">最优配置 hit@1<br>（chunk 300 / overlap 50）</div>
+                <div class="num"><span class="cnt" data-target="100">0</span><em>%</em></div>
+                <div class="cap">hit@1（嵌入修复后）<br>6 组配置全部满分</div>
             </div>
             <div class="stat reveal">
-                <div class="num"><span class="cnt" data-target="7" data-prefix="+">+0</span><em>pp</em></div>
-                <div class="cap">overlap 的量化贡献<br>（62% → 69%）</div>
+                <div class="num"><span class="cnt" data-target="29" data-prefix="0.">0.0</span></div>
+                <div class="cap">bug 的铁证：同一文本<br>两条嵌入路径的向量余弦</div>
             </div>
             <div class="stat reveal">
-                <div class="num"><span class="cnt" data-target="31">0</span><em>%</em></div>
-                <div class="cap">小块配置跌破随机基线<br>（标签与内容被切散）</div>
+                <div class="num"><span class="cnt" data-target="75">0</span><em>%</em></div>
+                <div class="cap">英文模型对照组<br>（中文模型 100%，选型靠数据）</div>
             </div>
         </div>
 
         <table class="exp">
             <thead>
-                <tr><th>chunk_size / overlap</th><th>知识块数</th><th>hit@1</th><th>结论</th></tr>
+                <tr><th>chunk_size / overlap</th><th>知识块数</th><th>hit@1 · 修复前</th><th>hit@1 · 修复后</th></tr>
             </thead>
             <tbody>
-                <tr><td class="num">100 / 30</td><td class="num">58</td><td class="num">31%</td><td>主题标签与内容被切散</td></tr>
-                <tr><td class="num">200 / 50</td><td class="num">26</td><td class="num">25%</td><td>同上</td></tr>
-                <tr><td class="num">300 / 0</td><td class="num">15</td><td class="num">62%</td><td>对照组：无重叠</td></tr>
-                <tr class="best"><td class="num">300 / 50<span class="tag-best">最优</span></td><td class="num">15</td><td class="num">69%</td><td>项目采用</td></tr>
-                <tr><td class="num">500 / 50</td><td class="num">9</td><td class="num">31%</td><td>一块混多主题，相似度被稀释</td></tr>
-                <tr><td class="num">800 / 100</td><td class="num">7</td><td class="num">62%</td><td>纯度回升，仍不及 300/50</td></tr>
+                <tr><td class="num">100 / 30</td><td class="num">58</td><td class="num">31%</td><td class="num">100%</td></tr>
+                <tr><td class="num">200 / 50</td><td class="num">26</td><td class="num">25%</td><td class="num">100%</td></tr>
+                <tr><td class="num">300 / 0</td><td class="num">15</td><td class="num">62%</td><td class="num">100%</td></tr>
+                <tr class="best"><td class="num">300 / 50<span class="tag-best">采用</span></td><td class="num">15</td><td class="num">69%</td><td class="num">100%</td></tr>
+                <tr><td class="num">500 / 50</td><td class="num">9</td><td class="num">31%</td><td class="num">100%</td></tr>
+                <tr><td class="num">800 / 100</td><td class="num">7</td><td class="num">62%</td><td class="num">100%</td></tr>
+                <tr><td class="num">300 / 50 · 英文模型对照</td><td class="num">15</td><td class="num">—</td><td class="num">75%</td></tr>
             </tbody>
         </table>
 
         <p class="exp-conclusion">
-            最优参数从"教程默认值"升级为"实验验证值"。
-            <strong>随机基线为 33%</strong>（3 篇语料），小块配置跌破基线是系统性失败的信号。
-            完整报告见 <a class="exp-link" href="https://github.com/Koda987/rag-knowledge/blob/main/experiments/results.md" target="_blank" rel="noopener">experiments/results.md</a>。
+            首轮实验里 25%~69% 的参数差异，全部是坏嵌入制造的<strong>伪信号</strong>——langchain 默认把文本转成 token id 发给第三方接口，向量语义早已失真。
+            三角验证（同文本对比 embed_query / embed_documents / 直连 API）定位根因，修复后六组配置全部满分：
+            <strong>检索系统的第一性问题是嵌入质量，不是调参</strong>。
+            完整报告与修复提交见 <a class="exp-link" href="https://github.com/Koda987/rag-knowledge/blob/main/experiments/results.md" target="_blank" rel="noopener">experiments/results.md</a>。
         </p>
     </div>
 </section>
@@ -179,7 +181,11 @@
                 </div>
                 <div class="tl-item">
                     <div class="tl-title">⑤ 实验与数据</div>
-                    <div class="tl-desc">chunk 参数扫描实验 + README 优化记录沉淀，把"参数怎么定"变成自己的数据表</div>
+                    <div class="tl-desc">chunk 参数扫描 + README 优化记录沉淀；首轮 69% 看似收官</div>
+                </div>
+                <div class="tl-item">
+                    <div class="tl-title">⑥ 嵌入修复战役</div>
+                    <div class="tl-desc">换域复用时暴露"检索时好时坏"→ 三角验证锁定 langchain 向第三方接口发 token id 的兼容性 bug → 修复重建，全配置 100%</div>
                 </div>
             </div>
         </div>
