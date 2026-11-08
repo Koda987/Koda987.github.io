@@ -2483,12 +2483,17 @@ html:not([data-theme="bauhaus"]) .hero-links .arrow-link { border-radius: 999px;
         transform: none;
     }
     .feat-panel .feat-card { margin: 0; }
-    /* 总结:两栏改单栏堆叠 */
+    /* 总结:绝对定位随容器滚动划走(与其他模块同一划屏方式);
+       演完时说明区/演示卡已清空,容器回一屏高,贴顶位置稳定;
+       出现时保留滑入过渡,切屏节奏与各模块一致 */
     .feat-summary {
-        inset: auto 20px 90px; top: 128px;
-        grid-template-columns: 1fr; gap: 18px; align-items: start;
-        overflow: auto; pointer-events: auto;
+        position: absolute; top: 118px; right: 18px; left: 18px; bottom: auto;
+        grid-template-columns: 1fr; gap: 16px; align-content: start; align-items: start;
+        pointer-events: auto;
+        opacity: 0; transform: translateY(26px);
+        transition: opacity .45s ease, transform .55s cubic-bezier(.2, .8, .2, 1);
     }
+    .feat-summary.on { opacity: 1; transform: none; }
     .sum-grid { justify-content: flex-start; }
     /* 品牌屏:标题字号与底部留位 */
     .brand-screen { padding-bottom: 10vh; }

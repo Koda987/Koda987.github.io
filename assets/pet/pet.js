@@ -142,6 +142,10 @@ async function boot() {
     ctl.pointerUp(p);
     if (cursorSet) { document.body.style.cursor = ''; cursorSet = false; }
   };
+  /* 手机:按住她期间拦截触摸滚动——否则浏览器判定为滚屏手势,立刻发 pointercancel
+     拖拽被取消,永远攒不出抛掷速度(电脑鼠标无此机制)。松手后恢复滚动 */
+  document.addEventListener('touchmove', e => { if (holding) e.preventDefault(); }, { passive: false });
+  document.addEventListener('contextmenu', e => { if (holding) e.preventDefault(); });   // 长按不弹系统菜单
   addEventListener('pointerup', e => (holding ? releaseAt(pt(e)) : ctl.pointerUp(pt(e))), true);
   addEventListener('pointercancel', e => (holding ? releaseAt(pt(e)) : ctl.pointerUp(pt(e))), true);
   // 拖着她把光标移出窗口:视作松手,避免卡在拖拽态
@@ -519,7 +523,7 @@ async function boot() {
             + '<span class="cap-skill"><b>工具方法</b>Git 工作流 · AI 辅助开发 · 实验评估</span>',
         gesture: 'nod',
         lines: [
-          { at: 0, text: '先介绍一下我的主人Koda，他的技能都写在左边啦' },
+          { at: 0, text: '先介绍一下我的主人Koda，他的技能都写在这里啦' },
           { at: 600, text: '方向是 LLM 应用开发 / AI 产品，正在找实习~' },
           { at: 600, text: '座右铭：数据不说谎，git log 见真章！' },
         ] },
@@ -620,12 +624,14 @@ async function boot() {
         if (tok !== featTok) return;
       }
     }
+    let featSpotX = null;                     // 当前讲解位:被丢走后她要自己走回来(官网同款)
     async function playFeature(i, tok) {
       showSummary(false);
       $f('.feat-skip').classList.add('on');     // 官网:演出期间右上角亮出「跳过」,收场时 endDemo 熄掉
       if (ctl.pet.mode === 'sleep') ctl.act('stand');
       const b = ctl.bounds;
       const spot = Math.round(Math.max(b.minX + 60, Math.min(b.W * .24, b.maxX - 60)));
+      featSpotX = spot;
       ctl.holdRoam(12);
       ctl.walkTo(spot, true, 'feat-host');
       ctl.pet.facing = 1;                       // 官网 face(1):面向面板
@@ -703,11 +709,12 @@ async function boot() {
       featTok++; shutUp();
       start(tk => replay(i, tk));
     }));
+    var isMobile = function () { return matchMedia('(max-width: 600px)').matches; };
     featEnter = () => {
       if (featSection.classList.contains('live')) return;
       if (!hostMode || document.documentElement.hasAttribute('data-intro')) return;
       featSection.classList.add('live');
-      if (featDone) { toSpot(); return; }
+      if (featDone) { toSpot(); if (isMobile()) showSummary(true); return; }   // 手机:回到本屏恢复总结
       start(tk => tour(featNext, tk));
     };
     const featLeave = () => {
@@ -718,12 +725,25 @@ async function boot() {
       // 官网 leave 语义:说明区/演示卡/步骤原样冻结在被打断的一幕,回来重演时再重绘
       featMode = null;
       if (featDone) endDemo();   // 官网不变量:总结视图与讲解视图互斥——已演完时先收掉冻结的说明区/演示卡,再铺总结
-      showSummary(featDone);
+      // 手机:总结是 fixed 贴顶的,离屏必须真隐藏(桌面 absolute 随区块滚走,演完保留无妨)
+      showSummary(isMobile() ? false : featDone);
     };
     new IntersectionObserver(es => {
       // 快速切屏时"离开+进入"会挤进同一批回调,逐条处理两段都要生效,被打断的模块才会从头重演
       for (const e of es) (e.isIntersecting ? featEnter : featLeave)();
     }, { threshold: .45 }).observe(featSection);
+    // 讲解/总结期间持续续期漫游保持(官网:宠物站定讲解,不自由闲逛)。
+    // 每幕只 holdRoam(12) 会在长台词中途过期,引擎自由漫游接管 → 她开始乱跑
+    setInterval(() => {
+      if (!(featMode || (featDone && featSection.classList.contains('live')))) return;
+      ctl.holdRoam(4);                         // 讲解期间站定,不自由闲逛
+      if (holding || featSpotX == null) return;
+      const mode = ctl.pet.mode;
+      if (mode === 'air' || mode === 'drag' || mode === 'dizzy' || mode === 'walk' || mode === 'run') return;   // 空中/被抱着/正在走:不打扰
+      const b = ctl.bounds;
+      const spot = Math.max(b.minX + 60, Math.min(featSpotX, b.maxX - 60));
+      if (Math.abs(ctl.pet.x - spot) > 70) ctl.walkTo(Math.round(spot), true, 'feat-back');   // 被丢到别处:自己走回讲解位(官网同款)
+    }, 1000);
   }
 
   /* ---------- 每屏站位(官网:切屏后她走到该屏的 spot 再开讲) ----------

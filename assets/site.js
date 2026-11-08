@@ -355,8 +355,8 @@
             if (next === 'bauhaus' && !document.getElementById('bh-font')) {
                 var l = document.createElement('link');
                 l.id = 'bh-font'; l.rel = 'stylesheet';
-                l.href = 'https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=Noto+Sans+SC:wght@500;900&display=swap';
-                document.head.appendChild(l);
+                l.href = 'https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@500;900&display=swap';
+                document.head.appendChild(l);   // 拉丁字体(Archivo 等)已由 assets/fonts/latin.css 自托管引入
             }
             document.dispatchEvent(new CustomEvent('koda:style', { detail: { theme: next } }));
         });
