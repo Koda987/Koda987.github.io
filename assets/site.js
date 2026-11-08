@@ -427,11 +427,17 @@
                 }, 600);
             }, 300);
         };
+        // 手机:按三行打(Koda，/ 一名正在沉淀的 / 开发者);桌面一行连排
+        var introMobile = window.matchMedia('(max-width: 600px)').matches;
+        var segs = introMobile ? ['Koda，', '一名正在沉淀的', '开发者']
+                               : ['Koda', '，一名正在沉淀的开发者'];
+        var br = function () { text.appendChild(document.createElement('br')); return wait(80); };
         wait(550)                               // 光标先空跳一会儿
-            .then(function () { return type('Koda', 120); })       // 名字先落
-            .then(function () { return wait(350); })
-            .then(function () { return type('，一名正在沉淀的开发者', 170); })   // 标语慢打
-            .then(function () { return wait(650); })               // 官网 questionHold:满句停留
+            .then(function () { return type(segs[0], 120); })       // 名字先落
+            .then(function () { return introMobile ? br() : wait(350); })
+            .then(function () { return type(segs[1], 170); })   // 标语慢打
+            .then(function () { return introMobile ? br() : wait(650); })   // 官网 questionHold:满句停留
+            .then(function () { return introMobile ? type(segs[2], 170) : wait(0); })
             .then(function () {                                    // 字"活过来"的时刻:鲸鱼此刻登场/蹦一下
                 document.dispatchEvent(new CustomEvent('koda:intro-alive'));
                 return wait(900);

@@ -1349,7 +1349,7 @@ html[data-theme="bauhaus"] .shot-frame .ph .big { filter: drop-shadow(0 6px 0 rg
 html[data-theme="bauhaus"] table.exp tr.best td { background: rgba(26,79,160,0.22); }
 html[data-theme="bauhaus"] .section.dark::before { background: radial-gradient(ellipse, rgba(26,79,160,0.5), transparent 62%); }
 /* 渐变文字 → 墨·红·蓝·黄四段(clip/fill 沿用原规则,只换色带) */
-html[data-theme="bauhaus"] .hero h1 { background: linear-gradient(105deg, #111111 0%, #1a4fa0 40%, #1a4fa0 70%, #f2c500 100%); }
+html[data-theme="bauhaus"] .hero h1 { background: none; -webkit-text-fill-color: currentColor; color: #111111; }   /* 详情页标题用纯墨色,不再渐变 */
 html[data-theme="bauhaus"] .sec-eyebrow { background: none; -webkit-text-fill-color: currentColor; color: #1a4fa0; font-weight: 700; }
 html[data-theme="bauhaus"] .spec:nth-child(1)::before { background: linear-gradient(90deg, #1a4fa0, #1a4fa0); }
 
@@ -1433,7 +1433,8 @@ html[data-theme="bauhaus"] .sec-sub { line-height: 1.8; }
 /* 大标题:900 字重 + 大写 + 紧行距(参考稿 FORM FOLLOWS FUNCTION) */
 html[data-theme="bauhaus"] .hero h1 {
     font-size: clamp(3.2rem, 8vw, 5.6rem);
-    font-weight: 900; letter-spacing: -0.03em; line-height: 0.95; text-transform: uppercase;
+    font-weight: 900; letter-spacing: -0.03em; line-height: 1.14; text-transform: uppercase;
+    /* 0.95 是拉丁大写的紧排参数;中文字形占满字面框,行框必须 ≥1em 否则字顶溢出渐变绘制区被"裁" */
 }
 
 /* 主 CTA 链接:官网 hero-btn 胶囊形态 + 包豪斯配色 */
@@ -1515,6 +1516,10 @@ html[data-intro] body { overflow: hidden; }  /* 锁内容:背后不随滚轮走 
     font-weight: 500; letter-spacing: 0.04em; color: var(--text);
     transition: opacity 0.3s ease, transform 0.35s ease;
 }
+@media (max-width: 600px) {
+    .intro-line { font-size: clamp(2.2rem, 11vw, 2.8rem); padding: 0 22px; text-align: center; }   /* 三行版式,每行最多 7 字,可以放大 */
+}
+
 /* 官网 glyph-pop:每个字从下方以弹簧曲线跳进来 */
 .intro-line .g { display: inline-block; animation: introGlyph 0.42s cubic-bezier(0.3, 1.7, 0.5, 1) both; }
 @keyframes introGlyph { from { transform: translateY(10px) scale(0.55); } }
@@ -1633,7 +1638,6 @@ html[data-theme="bauhaus"] .pet-item-in { opacity: 1; transform: none; }
    官网风下 Bento 仪表盘让位；Apple 风两者互换（boards 隐藏）。
    ============================================================ */
 .boards { display: none; }
-html[data-theme="bauhaus"] .hero { display: none; }
 html[data-theme="bauhaus"] .boards {
     display: flex; align-items: center;
     min-height: 100svh; padding: 90px 0 15vh;
@@ -2153,10 +2157,7 @@ html:not([data-theme="bauhaus"]) .cursor-glow { display: block; }
 }
 
 /* ---- V3 皮肤:渐变文字改用紫罗兰系(旧品牌紫→蓝→粉渐变不复用) ---- */
-html:not([data-theme="bauhaus"]) .hero h1 {
-    background-image: linear-gradient(105deg, #211a2b 0%, #4a3a58 55%, #78618f 100%);
-    -webkit-background-clip: text; background-clip: text;
-}
+html:not([data-theme="bauhaus"]) .hero h1 { background: none; -webkit-text-fill-color: currentColor; }   /* 详情页标题纯色 */
 html:not([data-theme="bauhaus"]) .cell-main h1 {
     background: none; -webkit-text-fill-color: #211629;
 }
@@ -2323,15 +2324,24 @@ html:not([data-theme="bauhaus"]) .v3 #about { background: #f8f6f8; }
 /* ---- V3 窄屏 ---- */
 @media (max-width: 760px) {
     .v3 .wrap { width: calc(100% - 38px); }
-    .v3 .v3-hero { height: 850px; min-height: 0; }
-    .v3 .hero-bg { object-position: 62% center; }
-    .v3 .v3-hero:after { background: linear-gradient(90deg, rgba(250,248,250,.98), rgba(250,248,250,.91) 62%, rgba(250,248,250,.35)), linear-gradient(0deg, rgba(250,248,250,.8), transparent 36%); }
-    .v3 .hero-inner { min-height: 850px; align-items: flex-start; padding-top: 160px; }
-    .v3 .hero-copy { width: min(88%, 520px); padding: 30px 0; background: linear-gradient(90deg, rgba(250,248,250,.55), transparent); }
-    .v3 .hero-copy:before { inset: -25px -18px -25px -18px; background: radial-gradient(ellipse at 30% 45%, rgba(250,248,250,.88), rgba(250,248,250,.55) 62%, transparent 100%); }
-    .v3 .hero-copy h1 { font-size: 140px; }
-    .v3 .hero-lead { font-size: 19px; }
-    .v3 .hero-desc { max-width: 290px; }
+    /* 手机:整屏图 + 文字压底部纱面(与桌面同构,尺寸收紧收进一屏) */
+    .v3 .v3-hero { display: flex; flex-direction: column; justify-content: flex-end; position: relative; height: 100svh; min-height: 560px; padding: 0; overflow: hidden; }   /* flex 底部对齐:文字沉底 */
+    .v3 .hero-bg {
+        position: absolute; inset: 0; width: 100%; height: 100%;
+        object-fit: cover; object-position: center 18%;
+        transform: none !important;   /* 关掉桌面视差,手机上图固定 */
+    }
+    .v3 .v3-hero:after { background: linear-gradient(180deg, rgba(250,248,250,0) 34%, rgba(250,248,250,.55) 52%, rgba(243,240,242,.95) 66%, #f3f0f2 76%); }   /* 下三分之一纱面托字 */
+    .v3 .hero-inner { position: relative; inset: auto; display: block; min-height: 0; height: auto; margin: 0 auto; padding: 0 20px 118px; }   /* margin 纵向归零:否则 .wrap 的 auto margin 在纵向 flex 里均分空隙,文字被居中而非沉底 */
+    .v3 .hero-copy { width: 100%; max-width: none; padding: 0; }
+    .v3 .hero-copy:before { content: none; }
+    .v3 .hero-copy .eyebrow { font-size: 9px; letter-spacing: .24em; }
+    .v3 .hero-copy h1 { font-size: 66px; line-height: .8; margin: 10px 0 0; }
+    .v3 .hero-copy h1:after { margin: 12px 0 0 6px; }
+    .v3 .hero-copy h1 small { font-size: 10px; letter-spacing: .34em; margin: 14px 0 0 4px; }
+    .v3 .hero-lead { font-size: 16px; margin: 14px 0 0; }
+    .v3 .hero-desc { display: none; }   /* 手机收进一屏:详情下滚再看 */
+    .v3 .hero-actions { margin-top: 14px; gap: 16px; }
     .v3 .hero-meta { font-size: 7px; color: #4d4057; letter-spacing: .12em; }
     .v3 .hero-scroll { right: 12px; bottom: 75px; }
     .v3 .stats { grid-template-columns: 1fr 1fr; }
@@ -2446,3 +2456,42 @@ html:not([data-theme="bauhaus"]) table.exp {
 
 /* ---- V3 皮肤:项目页 hero 按钮胶囊化 ---- */
 html:not([data-theme="bauhaus"]) .hero-links .arrow-link { border-radius: 999px; }
+
+/* ---- 规格卡左上角的彩色小条移除(两种风格统一,已不需要彩色装饰) ---- */
+.spec::before { content: none; }
+
+/* ============================================================
+   手机端适配（≤600px，包豪斯风为主）：介绍序列从绝对定位改堆叠
+   ============================================================ */
+@media (max-width: 600px) {
+    /* 步骤条:缩小、贴顶、可换行 */
+    .feat-steps {
+        top: 78px; gap: 8px; flex-wrap: wrap; justify-content: center;
+        width: 100%; padding: 0 12px; transform: none; left: 0;
+    }
+    .feat-steps button { font-size: 13px; gap: 7px; padding: 4px 6px 4px 4px; }
+    .feat-steps .num { width: 24px; height: 24px; font-size: 12px; }
+    /* 跳过按钮:右下角贴边 */
+    .feat-skip { right: 14px; bottom: 18px; }
+    /* 说明区:改为文档流堆叠(boards 的 flex 行布局在手机上改纵向) */
+    html[data-theme="bauhaus"] .boards { display: block; overflow-y: auto; padding: 0 0 110px; }
+    .feat-caption {
+        position: static; width: auto; margin: 118px 20px 0;
+    }
+    /* 演示面板:说明区下方,自然高度 */
+    .feat-panel {
+        position: static; width: auto; margin: 18px 20px 0;
+        transform: none;
+    }
+    .feat-panel .feat-card { margin: 0; }
+    /* 总结:两栏改单栏堆叠 */
+    .feat-summary {
+        inset: auto 20px 90px; top: 128px;
+        grid-template-columns: 1fr; gap: 18px; align-items: start;
+        overflow: auto; pointer-events: auto;
+    }
+    .sum-grid { justify-content: flex-start; }
+    /* 品牌屏:标题字号与底部留位 */
+    .brand-screen { padding-bottom: 10vh; }
+    html[data-theme="bauhaus"] .brand-title { font-size: clamp(1.9rem, 8.6vw, 2.6rem); }
+}

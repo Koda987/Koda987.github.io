@@ -22,7 +22,7 @@ const webglOK = (() => {
     return !!(c.getContext('webgl2') || c.getContext('webgl'));
   } catch { return false; }
 })();
-const ready = () => matchMedia('(prefers-reduced-motion: reduce)').matches || !webglOK || innerWidth <= 600;
+const ready = () => matchMedia('(prefers-reduced-motion: reduce)').matches || !webglOK;   // 手机端也启用(官网同款);窄屏由 --pet-s 与站位公式自适应
 
 /* 舞台宽度 = 视口宽度:漫游目标永远在屏内,她不会长时间走到看不见的地方 */
 const pageW = () => document.documentElement.clientWidth || innerWidth;
@@ -62,7 +62,8 @@ const petScale = () => {
   const big = innerWidth >= 2400 && innerHeight >= 1300 ? 1.35
     : innerWidth >= 1900 && innerHeight >= 1000 ? 1.2
     : innerWidth >= 1600 && innerHeight >= 860 ? 1.1 : 1;
-  return (Number.isFinite(s) ? s : 1) * .78 * big * (innerHeight < 650 ? .86 : 1);
+  const small = innerWidth <= 600 ? .72 : 1;   // 手机:宠物缩一号,留出屏幕给内容
+  return (Number.isFinite(s) ? s : 1) * .78 * big * small * (innerHeight < 650 ? .86 : 1);
 };
 const bounds = () => ({
   W: pageW(),
@@ -652,7 +653,7 @@ async function boot() {
           ask('要不要去看看完整的项目复盘？', [
             { label: '好呀', act: async () => {
                 await say('这边请~', { hold: 1100 });
-                const el = document.getElementById('projects');
+                const el = document.getElementById('b-projects');   // 包豪斯风的项目区(b- 前缀;#projects 是第一风格的隐藏区块)
                 if (el) scrollTo({ top: Math.round(el.getBoundingClientRect().top + scrollY), behavior: 'smooth' });
               } },
           ], true);
