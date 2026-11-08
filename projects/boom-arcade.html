@@ -7,7 +7,8 @@
     <meta name="description" content="BoomArcade：4 款小游戏的在线街机——账号体系、最高分排行榜、管理后台与安全加固，Java 全栈实现，部署在树莓派上。">
     <link rel="icon" type="image/png" href="../assets/favicon.png">
     <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
-    <link rel="stylesheet" href="../assets/style.css">
+    <script>try{var __s=localStorage.getItem("koda.style");if(__s==="coo")__s="bauhaus";if(!__s)__s="bauhaus";var __b=__s==="bauhaus";if(__b)document.documentElement.dataset.theme="bauhaus";var l=document.createElement("link");l.rel="stylesheet";l.href=__b?"https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=Noto+Sans+SC:wght@500;900&display=swap":"https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Italianno&family=Noto+Serif+SC:wght@400;500;600;700&display=swap";document.head.appendChild(l)}catch(e){}</script>
+    <link rel="stylesheet" href="../assets/style.css?v=20261107-85">
 </head>
 <body>
 
@@ -23,13 +24,17 @@
             <a href="#safety" class="nav-link">安全决策</a>
             <a href="https://www.neuronsama.qzz.io/game2.0/index.jsp" target="_blank" rel="noopener" class="nav-link">在线试玩 ↗</a>
             <span class="nav-clock hide-m" id="siteClock" aria-hidden="true"></span>
+            <button class="style-toggle" id="styleToggle" type="button" aria-label="切换网页风格" title="切换网页风格">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="10" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="7.6" r="1.1" fill="currentColor" stroke="none"/><circle cx="15.5" cy="10" r="1.1" fill="currentColor" stroke="none"/><path d="M12.2 21a3 3 0 0 0 0-6h-1.4"/>
+                </svg>
+            </button>
         </div>
     </div>
 </nav>
 
 <!-- ================= Hero ================= -->
 <header class="hero container" id="top">
-    <img src="../assets/logo.png" alt="Koda" class="hero-logo">
     <p class="eyebrow">项目 02 · Java 全栈 · Silly Pixel</p>
     <h1 style="font-size: clamp(2.4rem, 6.5vw, 4.2rem);">BoomArcade 街机乐园</h1>
     <p class="sub">4 款小游戏的在线街机：注册登录、最高分排行榜、管理后台。<br>从数据库到像素，全栈实现，跑在一台树莓派上。</p>
@@ -187,6 +192,7 @@
     <div class="container">◈ Koda · 2026 · 本站已运行 <span id="siteDays">1</span> 天 · 用代码和数据说话</div>
 </footer>
 
-<script src="../assets/site.js"></script>
+<script src="../assets/site.js?v=20261107-85"></script>
+<script type="module" src="../assets/pet/pet.js?v=20261107-85"></script>
 </body>
 </html>

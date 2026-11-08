@@ -1254,3 +1254,1195 @@ input[type="range"].demo-range::-webkit-slider-thumb {
 .demo-toast .t.ok { border-left-color: #22a55e; }
 .demo-toast .t.err { border-left-color: #d93025; }
 @keyframes tIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+
+/* ============================================================
+   鲸鱼宠物舞台（assets/pet/pet.js 动态插入）
+   fixed 恰好覆盖视口，整层不拦截指针，交互由 pet.js 做命中测试；
+   z-index 80：在内容之上、转场白幕(90)/导航栏(100)/toast(1200)之下。
+   角色大小与官网一致（基础 0.78 + 大屏加成），--pet-s 是整体微调倍率，默认 1。
+   ============================================================ */
+:root { --pet-s: 1; }
+#pet-stage {
+    position: fixed; top: 0; left: 0;
+    z-index: 80; pointer-events: none; overflow: visible;
+    view-transition-name: pet-stage;
+    opacity: 0; transition: opacity 0.18s ease-out;
+}
+#pet-stage.on { opacity: 1; }
+/* 跨页接力:切页时她不跟着整页飞走,而是作为独立过渡组原地交叉淡化;
+   旧快照多留 0.55s,盖住新页初始化的空窗(Chrome/Edge 跨文档 VT 生效) */
+@media (prefers-reduced-motion: no-preference) {
+    ::view-transition-old(pet-stage) { animation: petLinger 0.55s linear both; }
+    ::view-transition-new(pet-stage) { animation: petIn 0.3s ease-out both; }
+    @keyframes petLinger { from, to { opacity: 1; } }
+    @keyframes petIn { from { opacity: 0; } }
+}
+/* 拖拽宠物期间整页禁用文字选择，防止划过正文时触发浏览器原生拖选 */
+html.pet-grab, html.pet-grab * {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
+#pet-stage svg { position: absolute; inset: 0; display: block; overflow: visible; }
+/* 落地影子与粒子（爱心/灰尘/泪滴/睡觉的 Z 和音符），配色跟随鲸鱼的深蓝 */
+#pet-stage .shadow { fill: #1d2340; opacity: .16; }
+#pet-stage .p-heart { stroke: #ff5c93; fill: #ffd0df; }
+#pet-stage .p-dust { stroke: #9aa3c0; }
+#pet-stage .eye { stroke: #4d6bfe; }
+#pet-stage .tearf { fill: #8fd0ff; }
+
+/* 对白气泡（pet.js 动态插入）：跟随她头顶，--tail 是小尾巴的横向位置 */
+.pet-bubble {
+    position: absolute; z-index: 2;
+    width: max-content; min-width: 46px; max-width: min(340px, calc(100vw - 20px));   /* 官网:宽度随打字自然长,上限折行 */
+    min-height: 1.6em;
+    padding: 12px 17px; border-radius: 16px;
+    background: rgba(255,255,255,0.96);
+    border: 1px solid var(--hairline-soft);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    font-size: 16px; line-height: 1.6; color: var(--text);
+    pointer-events: none;
+    transform-origin: var(--tail, 50%) calc(100% + 10px);   /* 官网:从尾巴锚点"长"出来 */
+}
+.pet-bubble.pop { animation: petPopIn 0.26s cubic-bezier(0.3, 1.5, 0.5, 1); }   /* 官网 bubble-in 弹簧 */
+@keyframes petPopIn { from { transform: scale(0.5); opacity: 0; } }
+.pet-bubble.out { animation: petBubbleOut 0.22s ease both; }
+@keyframes petBubbleOut { to { transform: translateY(4px) scale(0.96); opacity: 0; } }
+.pet-bubble.ask { min-width: 236px; }   /* 官网 .ask:给选项按钮预留宽度 */
+.pet-bubble::after {
+    content: ""; position: absolute; left: var(--tail, 40px); bottom: -5px;
+    width: 10px; height: 10px; background: rgba(255,255,255,0.96);
+    border-right: 1px solid var(--hairline-soft);
+    border-bottom: 1px solid var(--hairline-soft);
+    transform: rotate(45deg);
+}
+
+/* ============================================================
+   网页风格切换：包豪斯风（html[data-theme="bauhaus"]）
+   形式追随功能——纸底 #f2efe9 + 墨黑 #111 + 三原色红 #1a4fa0 / 蓝 #1a4fa0 / 黄 #f2c500,
+   3px 硬描边、直角、几何装饰。切换按钮在导航栏（site.js 驱动）；
+   交互模式由 pet.js 响应同一事件进入「主持人模式」。
+   ============================================================ */
+html[data-theme="bauhaus"] {
+    --bg: #f2efe9;              /* 纸 */
+    --bg-alt: #e9e5dd;
+    --text: #111111;            /* 墨 */
+    --text-2: #333333;
+    --text-3: #666666;
+    --hairline: #111111;
+    --hairline-soft: #111111;
+    --accent: #1a4fa0;          /* 红 */
+    --accent-dark: #1a4fa0;     /* 蓝 */
+    --accent-ghost: rgba(26,79,160,0.08);
+    --bh-yellow: #f2c500;
+    --bh-paper: #fbfaf7;
+}
+/* 平色纸底,不掺渐变 */
+html[data-theme="bauhaus"] body { background: #f2efe9; font-family: 'Archivo', 'Noto Sans SC', var(--font-body); }
+html[data-theme="bauhaus"] body::before { background: #f2efe9; }
+/* 导航:纸底平栏 + 3px 墨线 */
+html[data-theme="bauhaus"] .nav {
+    background: #f2efe9;
+    border-bottom-color: #111;
+}
+/* 硬编码的紫色装饰 → 包豪斯三原色 */
+html[data-theme="bauhaus"] .shot-frame .ph .big { filter: drop-shadow(0 6px 0 rgba(26,79,160,0.85)); }
+html[data-theme="bauhaus"] table.exp tr.best td { background: rgba(26,79,160,0.22); }
+html[data-theme="bauhaus"] .section.dark::before { background: radial-gradient(ellipse, rgba(26,79,160,0.5), transparent 62%); }
+/* 渐变文字 → 墨·红·蓝·黄四段(clip/fill 沿用原规则,只换色带) */
+html[data-theme="bauhaus"] .hero h1 { background: linear-gradient(105deg, #111111 0%, #1a4fa0 40%, #1a4fa0 70%, #f2c500 100%); }
+html[data-theme="bauhaus"] .sec-eyebrow { background: none; -webkit-text-fill-color: currentColor; color: #1a4fa0; font-weight: 700; }
+html[data-theme="bauhaus"] .spec:nth-child(1)::before { background: linear-gradient(90deg, #1a4fa0, #1a4fa0); }
+
+/* 风格切换时的平滑过渡（site.js 切换瞬间挂 .style-switching 500ms） */
+html.style-switching, html.style-switching body, html.style-switching body::before,
+html.style-switching .nav, html.style-switching * {
+    transition: background-color 0.45s ease, color 0.45s ease,
+                border-color 0.45s ease, filter 0.45s ease,
+                border-radius 0.45s ease, letter-spacing 0.45s ease,
+                padding 0.45s ease, width 0.45s ease, max-width 0.45s ease !important;
+}
+
+/* 风格切换按钮（导航栏末尾的圆形图标钮） */
+.style-toggle {
+    margin-left: 6px; width: 32px; height: 32px; border-radius: 50%;
+    border: 1px solid var(--hairline-soft); background: transparent; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+    color: var(--text-2); transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+.style-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.style-toggle.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.style-toggle svg { width: 16px; height: 16px; display: block; }
+
+/* ============================================================
+   包豪斯风的排版层（html[data-theme="bauhaus"] 第二段：骨架换肤）
+   对齐包豪斯参考稿的版式语言：窄栏(1120) + 纸底平栏导航 +
+   直角 + 3px 硬描边 + 900 字重大写标题 + 几何装饰 + 悬浮硬投影。
+   默认 Apple 风不受影响。
+   ============================================================ */
+
+/* 圆角与字号:官网控制台规格(14px),配色包豪斯 */
+html[data-theme="bauhaus"] {
+    --radius: 14px;
+    --radius-sm: 8px;
+    --text-body: 0.9375rem;
+    --text-md: 1.0625rem;
+    --text-lg: 1.1875rem;
+}
+
+/* 窄栏:官方 --content-width 1120 */
+html[data-theme="bauhaus"] .container,
+html[data-theme="bauhaus"] .container-wide { width: min(100% - 48px, 1120px); }
+
+/* 导航:居中悬浮胶囊(官网 float-header 形态)+ 包豪斯配色 */
+html[data-theme="bauhaus"] .nav {
+    position: fixed; left: 0; right: 0; top: 14px;
+    display: flex; justify-content: center;
+    background: transparent; border-bottom: 0;
+    backdrop-filter: none; -webkit-backdrop-filter: none;
+    padding: 0;
+    transition: opacity 0.35s ease, transform 0.45s ease;
+}
+/* 开屏(品牌首屏)期间不显示顶栏,滚离这一屏才浮现——官网 float-header 的行为 */
+html[data-theme="bauhaus"] body:has(.brand-screen):not(.past-brand) .nav {
+    opacity: 0; transform: translateY(-10px); pointer-events: none;
+}
+html[data-theme="bauhaus"] .nav-inner {
+    width: auto; height: auto; padding: 7px 10px 7px 18px;
+    border-radius: var(--radius-full);
+    background: rgba(251,250,247,0.78);
+    border: 1px solid rgba(17,17,17,0.08);
+    box-shadow: 0 4px 18px rgba(17,17,17,0.08);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+}
+html[data-theme="bauhaus"] .nav-brand { font-weight: 900; }
+html[data-theme="bauhaus"] .nav-link {
+    font-size: 14px; font-weight: 500; padding: 8px 10px; border-radius: 999px;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+html[data-theme="bauhaus"] .nav-link:hover { background: rgba(17,17,17,0.05); color: var(--text); text-decoration: none; }
+html[data-theme="bauhaus"] .nav-clock { font-family: var(--font-mono); }
+
+/* 区块头:居中,红 kicker,标题 900 字重 */
+html[data-theme="bauhaus"] .sec-head { text-align: center; }
+html[data-theme="bauhaus"] .sec-eyebrow {
+    font-size: 12px; letter-spacing: 0.4em; text-transform: uppercase; margin-bottom: 14px; font-weight: 700;
+}
+html[data-theme="bauhaus"] .sec-title { font-weight: 900; letter-spacing: -0.02em; }
+html[data-theme="bauhaus"] .sec-sub { line-height: 1.8; }
+
+/* 大标题:900 字重 + 大写 + 紧行距(参考稿 FORM FOLLOWS FUNCTION) */
+html[data-theme="bauhaus"] .hero h1 {
+    font-size: clamp(3.2rem, 8vw, 5.6rem);
+    font-weight: 900; letter-spacing: -0.03em; line-height: 0.95; text-transform: uppercase;
+}
+
+/* 主 CTA 链接:官网 hero-btn 胶囊形态 + 包豪斯配色 */
+html[data-theme="bauhaus"] .hero-links a,
+html[data-theme="bauhaus"] .arrow-link {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 40px; padding: 0 18px; border-radius: 999px;
+    font-weight: 500; font-size: 14px; letter-spacing: 0.04em;
+    text-decoration: none; border: 1px solid transparent;
+    transition: transform 0.25s cubic-bezier(0.3, 1.4, 0.5, 1), box-shadow 0.25s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+html[data-theme="bauhaus"] .hero-links a {   /* primary:包豪斯蓝 */
+    color: #fff; background: #1a4fa0;
+    box-shadow: 0 6px 18px rgba(26,79,160,0.26), inset 0 1px 0 rgba(255,255,255,0.18);
+}
+html[data-theme="bauhaus"] .hero-links a:hover {
+    background: #2461b3; transform: translateY(-2px); text-decoration: none;
+    box-shadow: 0 10px 24px rgba(26,79,160,0.32), inset 0 1px 0 rgba(255,255,255,0.18);
+}
+html[data-theme="bauhaus"] .arrow-link {     /* ghost:纸底细描边 */
+    color: #111; background: rgba(251,250,247,0.78);
+    border-color: rgba(17,17,17,0.12);
+    box-shadow: 0 1px 2px rgba(17,17,17,0.04);
+}
+html[data-theme="bauhaus"] .arrow-link:hover {
+    border-color: rgba(17,17,17,0.22); transform: translateY(-2px); text-decoration: none;
+    box-shadow: 0 8px 20px rgba(17,17,17,0.08); background: rgba(251,250,247,0.9);
+}
+
+/* 卡片:官网控制台圆角 + 软描边软阴影 */
+html[data-theme="bauhaus"] .glass,
+html[data-theme="bauhaus"] .project-card {
+    border-radius: 14px; border: 1px solid rgba(17,17,17,0.08);
+    background: var(--bh-paper);
+    box-shadow: 0 1px 2px rgba(17,17,17,0.04), 0 8px 24px rgba(17,17,17,0.05);
+    transition: transform 0.25s cubic-bezier(0.3, 1.4, 0.5, 1), box-shadow 0.25s ease;
+}
+html[data-theme="bauhaus"] .project-card:hover,
+html[data-theme="bauhaus"] .cell-link:hover {
+    transform: translateY(-2px); box-shadow: 0 12px 32px rgba(17,17,17,0.1);
+}
+
+/* 几何装饰:圆和弧都是曲线,无直角 */
+html[data-theme="bauhaus"] body::after {
+    content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background:
+        radial-gradient(circle at 86% 10%, transparent 200px, rgba(26,79,160,0.18) 201px, transparent 203px),
+        radial-gradient(circle at 10% 10%, transparent 130px, rgba(242,197,0,0.2) 131px, transparent 133px),
+        radial-gradient(ellipse 320px 160px at 4% 88%, rgba(26,79,160,0.16) 99%, transparent 100%);
+}
+
+/* 滚动条:官网规格 */
+html[data-theme="bauhaus"] { scrollbar-width: thin; scrollbar-color: rgba(17,17,17,0.2) transparent; }
+html[data-theme="bauhaus"] ::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
+html[data-theme="bauhaus"] ::-webkit-scrollbar-thumb {
+    border: 2px solid transparent; border-radius: 8px;
+    background: rgba(17,17,17,0.2) content-box;
+}
+
+/* ============================================================
+   官网风开屏（site.js 第 11 节驱动，html[data-intro] 期间）
+   空屏打字 → 文字淡出 → 揭幕淡出；期间锁滚动、卡片仍被
+   boot-hold 压着，三色环等揭幕后 2.4s 缓缓亮起（官网节奏）。
+   ============================================================ */
+html[data-intro] { overflow-y: scroll; }   /* 不用 hidden:滚动条保持在位,揭幕时页面宽度不跳变(开屏层盖着,看不见背后) */
+html[data-intro] body { overflow: hidden; }  /* 锁内容:背后不随滚轮走 */
+
+#intro-screen {
+    position: fixed; inset: 0; z-index: 1400;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.6s ease;
+    animation: introVeilIn 0.22s ease-out;   /* 切换风格触发时柔和盖上来,不硬切 */
+}
+@keyframes introVeilIn { from { opacity: 0; } }
+#intro-screen.out { opacity: 0; pointer-events: none; }
+.intro-line {
+    font-size: clamp(2.2rem, 5.6vw, 3.5rem);      /* 官网:打字发生在品牌字标的字号级别 */
+    font-weight: 500; letter-spacing: 0.04em; color: var(--text);
+    transition: opacity 0.3s ease, transform 0.35s ease;
+}
+/* 官网 glyph-pop:每个字从下方以弹簧曲线跳进来 */
+.intro-line .g { display: inline-block; animation: introGlyph 0.42s cubic-bezier(0.3, 1.7, 0.5, 1) both; }
+@keyframes introGlyph { from { transform: translateY(10px) scale(0.55); } }
+.intro-line.out { opacity: 0; transform: translateY(8px) scale(0.92); }   /* "折进"她登场 */
+.intro-caret {
+    display: inline-block; width: 4px; height: 1em; margin-left: 8px;
+    vertical-align: -0.12em; border-radius: 2px; background: var(--accent);
+    animation: introCaret 1s steps(1) infinite;
+}
+@keyframes introCaret { 50% { opacity: 0; } }
+/* 开屏期间她浮在开屏层之上（官网：角色就站在开屏里）；三色环先藏、揭幕后缓亮 */
+html[data-intro] #pet-stage { z-index: 1450; }
+html[data-theme="bauhaus"] body::after { transition: opacity 2.4s ease; }
+html[data-intro] body::after { opacity: 0 !important; }
+
+/* 问句气泡里的选项按钮（官网 choices 玩法）：气泡层本不接指针，按钮单独放开 */
+.pet-ask { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }   /* 选项靠右下,官网 offer 排版 */
+.pet-ask button {
+    pointer-events: auto; cursor: pointer;
+    font: 600 13px/1 var(--font-body);
+    padding: 8px 14px; border-radius: var(--radius-full);
+    border: 1px solid var(--accent); background: transparent; color: var(--accent);
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+.pet-ask button:hover { background: var(--accent); color: #fff; }
+
+/* ============================================================
+   品牌首屏 + 单页滚动（官网风专用）
+   官网的结构:开屏打字停留的那一屏就是首页第一屏(品牌语 + 按钮),
+   整站全屏分节,滚一屏看一屏(scroll-snap proximity,不困住长节)。
+   Apple 风下品牌首屏隐藏、无吸附,一切如旧。
+   ============================================================ */
+.brand-screen { display: none; }
+html[data-theme="bauhaus"]:has(.brand-screen) {
+    scroll-snap-type: y mandatory;      /* 官网:整屏强吸附(仅首页;项目详情页内容长短不一,不吸附) */
+    scrollbar-gutter: stable;           /* 官网同款:滚动条的位置首帧就留好,开屏揭幕时页面不横跳 */
+}
+html[data-theme="bauhaus"] .brand-screen,
+html[data-theme="bauhaus"] .hero,
+html[data-theme="bauhaus"] .section,
+html[data-theme="bauhaus"] footer { scroll-snap-align: start; }
+/* 官网:每一屏都是整屏。我们的 section 内容不满一屏时,下一屏会从顶部漏出来,
+   所以包豪斯风下给 section 保底整屏;页脚改为叠在最后一屏底部(不占文档流),
+   文档总高恢复"整屏 × N"结构,滚到底也不会露出上一屏。 */
+html[data-theme="bauhaus"] body { position: relative; }
+html[data-theme="bauhaus"]:has(.brand-screen) .section { min-height: 100svh; }
+html[data-theme="bauhaus"] #about { padding-bottom: clamp(120px, 16vh, 180px); }
+html[data-theme="bauhaus"] footer {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    scroll-snap-align: none;
+}
+html[data-theme="bauhaus"] .brand-screen {
+    display: block; position: relative;
+    height: 100vh; height: 100svh; min-height: 560px;
+    padding: 0 16px 14vh;            /* 底部给她的地面留位 */
+    text-align: center;
+}
+/* 标题钉在视口正中——与开屏打字那一行完全同位,揭幕零漂移 */
+html[data-theme="bauhaus"] .brand-title {
+    position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+    padding: 0 24px;
+    font-size: clamp(2.2rem, 5.6vw, 3.5rem);
+    font-weight: 500; letter-spacing: 0.04em; color: var(--text);
+    text-wrap: balance;
+}
+/* 官网 hero-btn:胶囊按钮,揭幕后逐个弹出(90ms 错峰) */
+html[data-theme="bauhaus"] .brand-actions {
+    position: absolute; left: 50%; top: calc(50% + 4.6rem);
+    transform: translateX(-50%);
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 12px;
+}
+.brand-btn {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 11px 22px; border-radius: var(--radius-full);
+    background: var(--accent); color: #fff;
+    font-size: 15px; font-weight: 500; text-decoration: none;
+    opacity: 0; transform: translateY(14px) scale(0.92);
+    transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.3, 1.25, 0.5, 1);
+}
+.brand-btn.ghost {
+    background: rgba(251,251,251,0.9); color: var(--text);
+    border: 1px solid var(--hairline);
+}
+.brand-btn:hover { text-decoration: none; transform: translateY(-1px); }
+html:not([data-intro]) .brand-btn { opacity: 1; transform: none; }
+html:not([data-intro]) .brand-btn + .brand-btn { transition-delay: 0.09s; }
+html:not([data-intro]) .brand-btn:hover { transform: translateY(-1px); }
+/* 向下滚动提示(官网 hero-scroll) */
+html[data-theme="bauhaus"] .brand-scroll {
+    position: absolute; left: 50%; bottom: calc(14vh - 44px);
+    transform: translateX(-50%);
+    font-size: 12.5px; letter-spacing: 0.18em; color: var(--text-3);
+    opacity: 0; transition: opacity 0.6s ease 0.9s;
+    animation: brandScrollHint 2.2s ease-in-out infinite;
+}
+html:not([data-intro]) .brand-scroll { opacity: 0.85; }
+@keyframes brandScrollHint { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, 5px); } }
+
+/* 逐项巡讲:她正在介绍的那张卡点亮(官网:当前演示项聚焦) */
+.pet-spot {
+    box-shadow: 0 0 0 2px var(--accent), 0 12px 32px rgba(0,168,112,0.16) !important;
+    transition: box-shadow 0.35s ease;
+}
+
+/* 逐项巡讲的入场编排:一进屏先收进待场,随她的讲解逐项浮出 */
+html[data-theme="bauhaus"] .pet-item-wait {
+    opacity: 0 !important; transform: translateY(18px) scale(0.97);
+}
+html[data-theme="bauhaus"] .pet-item-wait, html[data-theme="bauhaus"] .pet-item-in {
+    transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+html[data-theme="bauhaus"] .pet-item-in { opacity: 1; transform: none; }
+
+/* ============================================================
+   介绍序列屏（官网风专用 #boards）：板块逐个弹出 + 她逐个讲解。
+   官网风下 Bento 仪表盘让位；Apple 风两者互换（boards 隐藏）。
+   ============================================================ */
+.boards { display: none; }
+html[data-theme="bauhaus"] .hero { display: none; }
+html[data-theme="bauhaus"] .boards {
+    display: flex; align-items: center;
+    min-height: 100svh; padding: 90px 0 15vh;
+    scroll-snap-align: start;
+}
+.boards-inner { width: min(100% - 48px, 760px); margin: 0 auto; }
+.board {
+    display: flex; gap: 20px; align-items: flex-start;
+    background: #fbfbfb; border: 1px solid var(--hairline-soft);
+    border-radius: var(--radius);
+    box-shadow: 0 1px 2px rgba(27,26,30,0.04), 0 8px 24px rgba(27,26,30,0.05);
+    padding: 22px 26px; margin-top: 14px;
+}
+/* 序号圆（官方 .steps .num 形态）：讲到它时填色放大 */
+.board .num {
+    display: grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0;
+    border-radius: 50%; border: 2px solid var(--text-3); color: var(--text-3);
+    font: 600 15px/1 var(--font-body);
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, transform 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.board.pet-spot .num {
+    background: var(--accent); border-color: var(--accent); color: #fff; transform: scale(1.14);
+}
+.board-kicker { font-size: 12px; letter-spacing: 0.18em; color: var(--accent); font-weight: 600; margin: 0 0 6px; }
+.board-title { font-size: 1.3rem; font-weight: 500; letter-spacing: 0.04em; margin: 0 0 6px; color: var(--text); }
+.board-desc { color: var(--text-2); line-height: 1.75; margin: 0 0 10px; font-size: 15px; }
+.board-link { font-weight: 600; font-size: 14px; }
+.board-summary { border-style: dashed; background: transparent; box-shadow: none; }
+
+/* ============================================================
+   功能演示屏（官网 features 屏的结构：步骤条 + 左说明 + 右演示 + 全屏总结）
+   演示面板三种：名片自填 / RAG 流式输出 / 贪吃蛇小动画。
+   ============================================================ */
+html[data-theme="bauhaus"] .boards { position: relative; padding: 0; overflow: hidden; }   /* 官网 .features 同款:三区绝对定位的锚 */
+
+/* 顶部步骤条（官方 .steps 形态） */
+.feat-steps {
+    position: absolute; top: clamp(84px, 12vh, 110px); left: 50%; transform: translateX(-50%);
+    display: flex; gap: clamp(14px, 3vw, 40px); margin: 0; padding: 0; list-style: none;
+    white-space: nowrap; z-index: 3;
+}
+.feat-steps li { opacity: 0; transform: translateY(-10px); transition: opacity .5s ease, transform .6s cubic-bezier(.3, 1.4, .5, 1); }
+.feat-steps li.on { opacity: 1; transform: none; }
+.feat-steps button {
+    display: inline-flex; align-items: center; gap: 10px; padding: 6px 10px 6px 6px;
+    border: 0; border-radius: 999px; background: none; cursor: default;
+    font: 400 clamp(15px, 1.3vw, 17px)/1 var(--font-body); letter-spacing: .04em;
+    color: var(--text-3); transition: color .3s ease, background-color .2s ease;
+}
+.feat-steps .num {
+    display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+    border: 2px solid currentColor; font: 600 14px/1 var(--font-body);
+    transition: background-color .3s ease, border-color .3s ease, color .3s ease, transform .4s cubic-bezier(.3, 1.6, .5, 1);
+}
+.feat-steps li.past button { color: var(--text-2); }
+.feat-steps li.past .num { color: var(--accent); }
+.feat-steps li.now button { color: var(--text); }
+.feat-steps li.now .num { background: var(--accent); border-color: var(--accent); color: #fff; transform: scale(1.12); }
+.feat-steps.ready button { cursor: pointer; }
+.feat-steps.ready button:hover { background: rgba(251,251,251,.85); color: var(--text); }
+.feat-steps.ready button:hover .num { transform: scale(1.08); }
+
+/* Skip 按钮(官网:右下角,演出期间常驻) */
+.feat-skip {
+    position: absolute; bottom: clamp(26px, 5.5vh, 46px); right: clamp(20px, 5vw, 64px); z-index: 3;
+    padding: 8px 16px; border-radius: 999px; border: 1px solid var(--hairline);
+    background: rgba(251,251,251,.8); color: var(--text-2);
+    font: 500 13px/1 var(--font-body); cursor: pointer;
+    opacity: 0; pointer-events: none; transition: opacity .4s ease, color .2s ease, border-color .2s ease;
+}
+.feat-skip.on { opacity: 1; pointer-events: auto; }
+.feat-skip:hover { color: var(--accent); border-color: var(--accent); }
+
+/* 左侧说明区（官方 .feat-caption） */
+.feat-caption {
+    position: absolute; top: clamp(170px, 25vh, 230px); left: clamp(20px, 8vw, 128px);
+    width: min(420px, 40vw); z-index: 2;
+    opacity: 0; transform: translateY(12px);
+    transition: opacity .5s ease, transform .6s cubic-bezier(.2, .8, .2, 1);
+}
+.feat-caption.on { opacity: 1; transform: none; }
+.feat-kicker { margin: 0; font: 600 13px/1 var(--font-body); letter-spacing: .2em; color: var(--accent); }
+.feat-title { margin: 14px 0 0; font: 500 clamp(30px, 3.4vw, 46px)/1.15 var(--font-body); letter-spacing: .04em; color: var(--text); text-wrap: balance; }
+.feat-desc { margin: 16px 0 0; font-size: clamp(15px, 1.2vw, 17px); line-height: 1.75; color: var(--text-2); }
+
+/* 右侧演示面板（官方 .feat-panel + .card） */
+.feat-panel {
+    position: absolute; top: 50%; left: 52%; transform: translateY(-46%);
+    width: min(420px, 36vw); z-index: 2;
+}
+.feat-card {
+    padding: 24px 26px; border-radius: 20px;
+    background: rgba(251,251,251,.92); border: 1px solid rgba(27,26,30,.08);
+    box-shadow: 0 18px 50px rgba(27,26,30,.08);
+    animation: featCardIn .6s cubic-bezier(.3, 1.3, .5, 1) both;
+}
+@keyframes featCardIn { from { opacity: 0; transform: translateY(18px) scale(.96); } }
+.feat-label { margin: 0 0 16px; font-size: 13px; letter-spacing: .16em; color: var(--text-3); }
+.feat-note { margin: 16px 0 0; font-size: 14px; line-height: 1.7; color: var(--text-2); }
+
+/* 演示一：名片自填（win-field 形态的行 + 聚焦圈 + 光标） */
+.f-row { display: grid; gap: 6px; margin-bottom: 12px; font-size: 12.5px; color: var(--text-3); }
+.f-field {
+    display: flex; align-items: center; min-height: 40px; padding: 0 12px; border-radius: 10px;
+    border: 1.5px solid rgba(27,26,30,.12); background: #fff;
+    font-size: 15px; color: var(--text); transition: border-color .2s ease, box-shadow .2s ease;
+}
+.f-field.focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(0,168,112,.12); }
+.f-field.focus:empty::after, .f-field.focus .caret { content: ""; display: inline-block; width: 2px; height: 1.05em; margin-left: 2px; vertical-align: -3px; background: var(--accent); animation: featCaret 1s steps(1) infinite; }
+@keyframes featCaret { 50% { opacity: 0; } }
+.f-done { margin: 4px 0 0; font-size: 13px; font-weight: 600; color: var(--accent); opacity: 0; transition: opacity .4s ease; }
+.f-done.on { opacity: 1; }
+
+/* 演示二：RAG 流式输出（仿窗口 + 对话） */
+.f-win { padding: 0; overflow: hidden; }
+.f-bar { display: flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px; border-bottom: 1px solid rgba(27,26,30,.07); background: rgba(27,26,30,.03); }
+.f-bar i { width: 11px; height: 11px; border-radius: 50%; background: rgba(27,26,30,.12); }
+.f-bar i:nth-child(1) { background: #ff6b6b; } .f-bar i:nth-child(2) { background: #ffc145; } .f-bar i:nth-child(3) { background: #3ccf75; }
+.f-bar span { margin-left: 8px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.f-chat { padding: 16px 16px 14px; display: grid; gap: 10px; }
+.f-msg { max-width: 86%; padding: 9px 13px; border-radius: 13px; font-size: 14px; line-height: 1.65; }
+.f-msg.user { justify-self: end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+.f-msg.bot { justify-self: start; background: rgba(27,26,30,.05); color: var(--text); border-bottom-left-radius: 4px; }
+.f-chunk { display: block; opacity: 0; transform: translateY(4px); transition: opacity .35s ease, transform .35s ease; }
+.f-chunk.on { opacity: 1; transform: none; }
+.f-chunk .src { color: var(--accent); font-weight: 600; }
+.f-status { display: inline-flex; align-items: center; gap: 7px; margin: 2px 0 0 16px; font-size: 12.5px; color: var(--text-3); }
+.f-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: featPulse 1s ease-in-out infinite; }
+.f-status.done { color: var(--accent); } .f-status.done::before { animation: none; }
+@keyframes featPulse { 50% { opacity: .3; } }
+
+/* 演示三：贪吃蛇小动画（像素网格） */
+.f-px-wrap { position: relative; padding: 14px; border-radius: 12px; background: #14181f; }
+.f-px { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; }
+.f-px i { aspect-ratio: 1; border-radius: 3px; background: rgba(255,255,255,.06); }
+.f-px i.s { background: #2fd59b; box-shadow: 0 0 8px rgba(47,213,155,.5); }
+.f-px i.h { background: #7ef7c6; }
+.f-px i.d { background: #ffc145; box-shadow: 0 0 8px rgba(255,193,69,.5); }
+.f-px-score { position: absolute; top: 10px; right: 14px; font: 700 15px/1 var(--font-mono); color: #7ef7c6; }
+.f-px-flash { position: absolute; inset: 0; display: grid; place-items: center; font: 700 17px/1 var(--font-mono); letter-spacing: .2em; color: #7ef7c6; background: rgba(20,24,31,.72); opacity: 0; transition: opacity .3s ease; }
+.f-px-flash.on { opacity: 1; }
+
+/* 总结：三幕播完后铺满整屏（官方 .feat-summary） */
+.feat-summary {
+    position: absolute; z-index: 2;
+    inset: clamp(150px, 20vh, 190px) clamp(20px, 7vw, 120px) max(160px, calc(15vh + 120px));
+    display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+    align-items: center; gap: clamp(28px, 5vw, 80px); pointer-events: none;
+}
+.feat-summary > * { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .7s cubic-bezier(.2, .8, .2, 1); }
+.feat-summary.on > * { opacity: 1; transform: none; pointer-events: auto; }
+.feat-summary.on .sum-grid { transition-delay: .12s; }
+.sum-title { margin: 14px 0 0; font: 500 clamp(30px, 3.6vw, 50px)/1.2 var(--font-body); letter-spacing: .04em; color: var(--text); }
+.sum-desc { margin: 18px 0 0; font-size: clamp(15px, 1.2vw, 17px); line-height: 1.75; color: var(--text-2); }
+.sum-more { display: inline-block; margin-top: 22px; font-weight: 600; }
+.sum-grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+.sum-grid b {
+    padding: 9px 16px; border-radius: 999px; border: 1px solid var(--hairline);
+    background: rgba(251,251,251,0.9); font: 500 13.5px/1 var(--font-body); color: var(--text-2);
+}
+
+/* 窄屏:三区改为纵向堆叠 */
+@media (max-width: 1000px) {
+    html[data-theme="bauhaus"] .boards { overflow: visible; }
+    .feat-steps { top: 74px; }
+    .feat-caption { position: static; width: auto; margin: 96px auto 0; padding: 0 20px; text-align: center; }
+    .feat-panel { position: static; transform: none; width: min(420px, calc(100% - 40px)); margin: 22px auto 0; }
+    .feat-summary { position: static; grid-template-columns: 1fr; gap: 22px; padding: 28px 20px 140px; }
+    .sum-grid { justify-content: center; }
+}
+
+/* 演示面板里的项目大卡(官网风第二屏幕二/幕三):与第三屏 project-card 同语言 */
+.feat-panel .f-pcard { padding: 0; overflow: hidden; }
+.f-pcard .pcard {
+    display: block; text-decoration: none; color: inherit;
+    transition: transform 0.25s var(--ease-pop), box-shadow 0.25s ease;
+}
+.f-pcard .pcard:hover { transform: translateY(-3px); box-shadow: 0 22px 54px rgba(27,26,30,0.12); text-decoration: none; }
+.pcard-cover {
+    display: block; height: 178px;
+    background-size: cover; background-position: center;
+    border-bottom: 1px solid var(--hairline-soft);
+}
+.pcard-body { display: block; padding: 18px 22px 20px; }
+.pcard-title { display: block; font-size: 1.15rem; font-weight: 600; letter-spacing: 0.01em; color: var(--text); margin-bottom: 7px; }
+.pcard-desc { display: block; font-size: 14px; line-height: 1.7; color: var(--text-2); margin-bottom: 12px; }
+.pcard-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.pcard-tags i {
+    font-style: normal; font-size: 11.5px; padding: 4px 10px; border-radius: 999px;
+    background: var(--accent-ghost); color: var(--accent-dark); font-weight: 500;
+}
+.pcard-go { display: block; font-size: 13.5px; font-weight: 600; color: var(--accent); }
+
+/* 演示一面板里的技能行(原技能区内容并入"关于") */
+.f-skill {
+    display: grid; grid-template-columns: 62px 1fr; gap: 10px; align-items: baseline;
+    padding: 9px 12px; border-radius: 10px; background: rgba(27,26,30,0.035);
+    margin-bottom: 8px; font-size: 13px; line-height: 1.6;
+    opacity: 0; transform: translateX(-8px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+}
+.f-skill.on { opacity: 1; transform: none; }
+.f-skill b { color: var(--accent-dark); font-weight: 600; }
+.f-skill span { color: var(--text-2); }
+
+/* 左侧说明区里的技能行(第一幕"关于"专用):紧凑竖排 */
+.cap-skill {
+    display: grid; grid-template-columns: 58px 1fr; gap: 10px; align-items: baseline;
+    margin-top: 9px; padding: 8px 12px; border-radius: 10px;
+    background: rgba(27,26,30,0.04);
+    font-size: 13px; line-height: 1.6; color: var(--text-2);
+}
+.cap-skill b { color: var(--accent-dark); font-weight: 600; }
+
+/* ============================================================
+   包豪斯覆盖(第三段):品牌屏 / 演示屏 / 宠物气泡与聚焦
+   全部直角 + 3px 墨描边 + 红/蓝/黄三原色。
+   ============================================================ */
+/* 品牌首屏:标语 900 字重 */
+html[data-theme="bauhaus"] .brand-title { font-weight: 900; letter-spacing: -0.02em; }
+html[data-theme="bauhaus"] .brand-btn {
+    height: 46px; padding: 0 24px; border-radius: 999px; border: 1px solid transparent;
+    font-weight: 500; letter-spacing: 0.04em; background: #1a4fa0; color: #fff;
+    box-shadow: 0 6px 18px rgba(26,79,160,0.26), inset 0 1px 0 rgba(255,255,255,0.18);
+    transition: transform 0.25s cubic-bezier(0.3, 1.4, 0.5, 1), box-shadow 0.25s ease, background-color 0.2s ease, border-color 0.2s ease, opacity 0.45s ease;
+}
+html[data-theme="bauhaus"] .brand-btn:hover { background: #2461b3; transform: translateY(-2px); box-shadow: 0 10px 24px rgba(26,79,160,0.32); }
+html[data-theme="bauhaus"] .brand-btn.ghost {
+    background: rgba(251,250,247,0.78); color: #111; border-color: rgba(17,17,17,0.12);
+    box-shadow: 0 1px 2px rgba(17,17,17,0.04); backdrop-filter: blur(6px);
+}
+html[data-theme="bauhaus"] .brand-btn.ghost:hover { border-color: rgba(17,17,17,0.22); box-shadow: 0 8px 20px rgba(17,17,17,0.08); background: rgba(251,250,247,0.9); }
+html[data-theme="bauhaus"] .brand-scroll { color: #1a4fa0; font-weight: 700; }
+
+/* 开屏:纸底 + 红粗光标 */
+html[data-theme="bauhaus"] #intro-screen { background: #f2efe9; }
+html[data-theme="bauhaus"] .intro-line { font-weight: 900; letter-spacing: -0.01em; }
+html[data-theme="bauhaus"] .intro-caret { width: 5px; background: #1a4fa0; }
+
+/* 步骤条:方形号码块(官方圆形 → 包豪斯方) */
+html[data-theme="bauhaus"] .feat-steps .num { border-radius: 50%; border-width: 2px; }
+html[data-theme="bauhaus"] .feat-steps li.now .num { background: #1a4fa0; border-color: #1a4fa0; color: #fff; transform: scale(1.12); }
+html[data-theme="bauhaus"] .feat-steps.ready button:hover { background: rgba(17,17,17,0.06); }
+
+/* 演示面板与项目卡:直角 + 3px 墨描边 + 硬投影 */
+html[data-theme="bauhaus"] .feat-card {
+    border-radius: 22px; border: 1px solid rgba(17,17,17,0.08); background: rgba(251,250,247,0.92);
+    box-shadow: 0 18px 50px rgba(17,17,17,0.08);
+}
+html[data-theme="bauhaus"] .feat-label { color: #1a4fa0; font-weight: 700; letter-spacing: 0.2em; }
+html[data-theme="bauhaus"] .f-field { border-radius: 10px; border: 1.5px solid rgba(17,17,17,0.12); background: #fff; }
+html[data-theme="bauhaus"] .f-field.focus { border-color: #1a4fa0; box-shadow: 0 0 0 4px rgba(26,79,160,0.12); }
+html[data-theme="bauhaus"] .f-done { color: #1a4fa0; }
+html[data-theme="bauhaus"] .pcard-cover { border-bottom: 1px solid rgba(17,17,17,0.08); }
+html[data-theme="bauhaus"] .pcard-tags i {
+    border-radius: 999px; background: rgba(26,79,160,0.08);
+    color: #1a4fa0; font-weight: 600;
+}
+html[data-theme="bauhaus"] .pcard-go { color: #1a4fa0; }
+html[data-theme="bauhaus"] .sum-grid b {
+    border-radius: 999px; border: 1px solid rgba(17,17,17,0.12); background: rgba(251,250,247,0.9);
+    color: #333; font-weight: 500;
+}
+
+/* 宠物:气泡方角 + 3px 墨描边 + 硬投影;聚焦红框;互动粒子换色 */
+html[data-theme="bauhaus"] .pet-bubble {
+    border-radius: 17px; border: 1px solid rgba(17,17,17,0.08); background: rgba(255,255,255,0.96);
+    box-shadow: 0 8px 24px rgba(17,17,17,0.1);
+}
+html[data-theme="bauhaus"] .pet-bubble::after { background: rgba(255,255,255,0.96); border-right: 1px solid rgba(17,17,17,0.08); border-bottom: 1px solid rgba(17,17,17,0.08); bottom: -6px; }
+html[data-theme="bauhaus"] .pet-ask button {
+    border-radius: 999px; border: 1px solid rgba(17,17,17,0.12); background: rgba(255,255,255,0.96);
+    color: #111; font-weight: 600;
+}
+html[data-theme="bauhaus"] .pet-ask button:hover { background: #1a4fa0; border-color: #1a4fa0; color: #fff; }
+html[data-theme="bauhaus"] .pet-spot {
+    box-shadow: 0 0 0 2px #1a4fa0, 0 10px 28px rgba(26,79,160,0.2) !important;
+}
+html[data-theme="bauhaus"] #pet-stage .eye { stroke: #1a4fa0; }
+html[data-theme="bauhaus"] #pet-stage .p-heart { stroke: #1a4fa0; fill: #ffd9d9; }
+
+/* 风格切换按钮:保持圆形,包豪斯红心 */
+html[data-theme="bauhaus"] .style-toggle.on { background: #1a4fa0; border-color: #1a4fa0; }
+html[data-theme="bauhaus"] .style-toggle:hover { border-color: #1a4fa0; color: #1a4fa0; }
+
+/* 品牌屏按钮里的图标(官网 btn-icon 规格) */
+.brand-btn .btn-icon { width: 17px; height: 17px; flex: none; }
+
+/* 悬浮栏的 GitHub 按钮(官网 hero-btn ghost small 形态:图标 + 文字小胶囊) */
+.nav-gh {
+    display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0;
+    height: 34px; padding: 0 14px; border-radius: 999px;
+    border: 1px solid rgba(17,17,17,0.14); background: rgba(255,255,255,0.55);
+    color: var(--text); font-size: 13.5px; font-weight: 500; text-decoration: none;
+    transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
+}
+.nav-gh .btn-icon { width: 16px; height: 16px; flex: none; }
+.nav-gh:hover {
+    border-color: rgba(17,17,17,0.28); background: rgba(255,255,255,0.85);
+    transform: translateY(-1px); text-decoration: none;
+}
+
+/* 官网风第四屏(关于我):标题与内容块整体居中,像官网每屏的展示版式 */
+html[data-theme="bauhaus"] #about {
+    display: flex; align-items: center;      /* 内容在整屏里垂直居中 */
+    padding-top: 84px;                        /* 给悬浮导航留位 */
+}
+html[data-theme="bauhaus"] #about .container { width: 100%; }
+html[data-theme="bauhaus"] #about .sec-head { text-align: center; }
+html[data-theme="bauhaus"] #about .about-grid {
+    width: min(100%, 860px); margin: 0 auto;  /* 内容块收窄居中 */
+}
+
+/* ============================================================
+   第一风格皮肤：koda-site-redesign-v3（紫罗兰杂志风）
+   仅作用于默认风格（html 无 data-theme 或 =apple）；包豪斯风不受影响。
+   要点：纸感底色 + 紫罗兰点缀、衬线标题 + 手写体品牌字、发丝线描边、
+   全出血人设图 hero（左侧纸感渐变遮罩）、细字距小标签、直角卡片。
+   ============================================================ */
+html:not([data-theme="bauhaus"]) {
+    --bg: #f3f0f2;
+    --bg-alt: #e8e2e9;
+    --bg-dark: #211a29;
+    --text: #211a2b;
+    --text-2: #5d5364;
+    --text-3: #766d7d;
+    --hairline: rgba(48,35,60,.16);
+    --hairline-soft: rgba(48,35,60,.10);
+    --accent: #78618f;
+    --accent-dark: #5d4a70;
+    --accent-ghost: #efe9f2;
+    --font-body: "DM Sans", -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    --font-serif: "Noto Serif SC", 'Songti SC', serif;
+    --font-script: "Italianno", cursive;
+    --glass-bg: rgba(250,248,250,.78);
+    --glass-border: rgba(48,35,60,.13);
+    --glass-blur: blur(6px);
+    --glass-shadow: 0 20px 40px -30px rgba(45,30,57,.18);
+    --radius: 18px;
+    --radius-glass: 20px;
+    --radius-sm: 12px;
+}
+html:not([data-theme="bauhaus"]) body { font-family: var(--font-body); }
+html:not([data-theme="bauhaus"]) h1,
+html:not([data-theme="bauhaus"]) h2,
+html:not([data-theme="bauhaus"]) h3 { font-family: var(--font-serif); font-weight: 500; letter-spacing: .01em; }
+
+/* ---- 导航：纸感细线栏 + 手写体品牌字 + 细字距小标签 ---- */
+html:not([data-theme="bauhaus"]) .nav {
+    background: rgba(243,240,242,.8);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border-bottom: 1px solid rgba(39,28,52,.14);
+}
+html:not([data-theme="bauhaus"]) .nav-inner { height: 72px; }
+html:not([data-theme="bauhaus"]) .nav-brand {
+    font-family: var(--font-script); font-weight: 400; font-size: 34px;
+    color: #352542; line-height: 1; gap: 0; letter-spacing: 0;
+}
+html:not([data-theme="bauhaus"]) .nav-brand .logo-img { display: none; }
+html:not([data-theme="bauhaus"]) .nav-link {
+    font-size: 11px; letter-spacing: .22em; text-transform: uppercase;
+    color: #51475a; padding: 6px 2px; border-radius: 0;
+}
+html:not([data-theme="bauhaus"]) .nav-link:hover {
+    color: var(--accent); background: none; box-shadow: none;
+}
+html:not([data-theme="bauhaus"]) .nav-pill { display: none; }
+html:not([data-theme="bauhaus"]) .nav-gh {
+    border: 1px solid rgba(114,91,133,.45); border-radius: 0;
+    color: #3c2e49; padding: 8px 14px;
+}
+html:not([data-theme="bauhaus"]) .nav-gh:hover { background: #6e587f; color: #fff; }
+
+/* ---- Hero：全出血人设图 + 左侧纸感渐变（V3 同款构图） ---- */
+html:not([data-theme="bauhaus"]) .hero {
+    position: relative; text-align: left;
+    display: flex; flex-direction: column; justify-content: center;
+    min-height: min(100svh, 920px);
+    padding: 110px max(24px, 4vw) 72px;
+    background: #eee9ef;
+    overflow: hidden;
+}
+html:not([data-theme="bauhaus"]) .hero.container { width: 100%; max-width: none; }
+html:not([data-theme="bauhaus"]) .hero::before {
+    content: ""; position: absolute; inset: 0; z-index: 0;
+    width: auto; height: auto; border-radius: 0; filter: saturate(.78);
+    animation: none; transform: none;
+    background: url("koda-original.jpg") center 37% / cover no-repeat;
+}
+html:not([data-theme="bauhaus"]) .hero::after {
+    content: ""; position: absolute; inset: 0; z-index: 1;
+    width: auto; height: auto; border-radius: 0; filter: none;
+    animation: none; transform: none;
+    background:
+        linear-gradient(90deg, rgba(250,248,250,.99) 0%, rgba(250,248,250,.98) 30%,
+                        rgba(250,248,250,.92) 48%, rgba(250,248,250,.48) 68%, rgba(250,248,250,.04) 88%),
+        linear-gradient(0deg, rgba(250,248,250,.78) 0%, rgba(250,248,250,.18) 22%, transparent 42%);
+}
+html:not([data-theme="bauhaus"]) .hero > * { position: relative; z-index: 2; }
+html:not([data-theme="bauhaus"]) .hero .eyebrow {
+    font-size: 10px; letter-spacing: .3em; text-transform: uppercase;
+    color: #70577f; font-weight: 600; margin-bottom: 10px;
+}
+/* 手写体巨字 Koda 只用于首页主卡；项目页的中文大标题走衬线 */
+html:not([data-theme="bauhaus"]) .cell-main h1 {
+    font-family: var(--font-script); font-weight: 400;
+    font-size: clamp(88px, 11vw, 152px); line-height: .82; letter-spacing: -.02em;
+    color: #211629; margin: 14px 0 4px;
+    text-shadow: 0 2px 18px rgba(255,255,255,.55);
+}
+html:not([data-theme="bauhaus"]) .cell-main h1::after {
+    content: ""; display: block; width: 70px; height: 1px;
+    background: #9c83ae; margin: 24px 0 0 8px;
+}
+html:not([data-theme="bauhaus"]) .hero .sub {
+    font-family: var(--font-serif); font-weight: 600;
+    font-size: clamp(19px, 2vw, 25px); line-height: 1.7;
+    color: #241b2b; text-align: left; margin: 0 0 10px; max-width: 530px;
+}
+html:not([data-theme="bauhaus"]) .hero-links { justify-content: flex-start; gap: 25px; margin-top: 26px; }
+html:not([data-theme="bauhaus"]) .hero-links .arrow-link {
+    border: 1px solid #725b85; padding: 13px 22px; font-size: 11px;
+    letter-spacing: .16em; color: #3c2e49; transition: .25s; font-weight: 500;
+}
+html:not([data-theme="bauhaus"]) .hero-links .arrow-link::after { content: ' ↗'; }
+html:not([data-theme="bauhaus"]) .hero-links .arrow-link:hover { background: #6e587f; color: #fff; text-decoration: none; }
+html:not([data-theme="bauhaus"]) .hero-links a:not(.arrow-link) {
+    font-size: 11px; letter-spacing: .16em; color: #64546f;
+    border-bottom: 1px solid #a494b2; padding-bottom: 8px;
+}
+html:not([data-theme="bauhaus"]) .status-pill {
+    background: none; border: 0; padding: 0; margin-top: 18px;
+    color: #6d597d; font-size: 10px; letter-spacing: .14em; font-weight: 600;
+}
+html:not([data-theme="bauhaus"]) .status-pill .pulse-dot { width: 6px; height: 6px; background: #8e789f; }
+
+/* ---- Bento 卡片：玻璃 → 半透明纸卡，衬线数字 ---- */
+html:not([data-theme="bauhaus"]) .glass {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+}
+html:not([data-theme="bauhaus"]) .bento { gap: 14px; }
+html:not([data-theme="bauhaus"]) .bento .cell-main {
+    background: transparent; border-color: transparent;
+    box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+html:not([data-theme="bauhaus"]) .cell-main .hero-logo { display: none; }
+html:not([data-theme="bauhaus"]) .cell-clock,
+html:not([data-theme="bauhaus"]) .cell-strong { font-family: var(--font-serif); }
+html:not([data-theme="bauhaus"]) .cell-chip { filter: grayscale(.5) opacity(.9); }
+html:not([data-theme="bauhaus"]) .cell-label { letter-spacing: .18em; text-transform: uppercase; font-size: 10px; }
+
+/* ---- 区块与项目卡：交替纸色 + 直角发丝线卡 ---- */
+html:not([data-theme="bauhaus"]) #projects { background: #f8f6f8; }
+html:not([data-theme="bauhaus"]) #about { background: #e8e2e9; }
+html:not([data-theme="bauhaus"]) .sec-eyebrow {
+    font-size: 10px; letter-spacing: .3em; text-transform: uppercase;
+    color: #70577f; font-weight: 600;
+}
+html:not([data-theme="bauhaus"]) .sec-title {
+    font-family: var(--font-serif); font-weight: 500;
+    font-size: clamp(38px, 5vw, 62px); letter-spacing: .01em;
+}
+html:not([data-theme="bauhaus"]) .project-card {
+    background: #f8f6f8; border: 1px solid rgba(68,48,83,.12);
+    border-radius: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none;
+    transition: transform .35s, box-shadow .35s;
+}
+html:not([data-theme="bauhaus"]) .project-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 18px 40px rgba(45,30,57,.12);
+}
+html:not([data-theme="bauhaus"]) .card-cover { border-bottom: 1px solid rgba(68,48,83,.12); }
+html:not([data-theme="bauhaus"]) .card-body h3 { font-size: 22px; }
+html:not([data-theme="bauhaus"]) .tech { color: #716777; letter-spacing: .04em; }
+html:not([data-theme="bauhaus"]) .card-body .go { color: var(--accent-dark); }
+
+/* ---- 页脚：薰衣草色横条 ---- */
+html:not([data-theme="bauhaus"]) footer {
+    background: #e2dce5; color: #756a7c;
+    font-size: 11px; letter-spacing: .16em; padding: 23px 0;
+}
+
+/* ---- V3 细节：滚动进度条 + 鼠标柔光（JS 注入节点，主题门控显示） ---- */
+#scrollProgress {
+    position: fixed; z-index: 300; top: 0; left: 0; height: 2px; width: 0;
+    background: linear-gradient(90deg, #a88cbd, #514061);
+    box-shadow: 0 0 12px #bca5ce; display: none;
+}
+html:not([data-theme="bauhaus"]) #scrollProgress { display: block; }
+.cursor-glow {
+    position: fixed; z-index: 1; pointer-events: none;
+    width: 260px; height: 260px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(166,137,190,.13), transparent 68%);
+    transform: translate(-50%,-50%); opacity: 0; transition: opacity .25s;
+    display: none;
+}
+html:not([data-theme="bauhaus"]) .cursor-glow { display: block; }
+
+/* ---- 窄屏 ---- */
+@media (max-width: 760px) {
+    html:not([data-theme="bauhaus"]) .hero { min-height: 0; padding: 130px 20px 60px; }
+    html:not([data-theme="bauhaus"]) .hero::before { background-position: 62% center; }
+    html:not([data-theme="bauhaus"]) .hero::after {
+        background: linear-gradient(90deg, rgba(250,248,250,.98), rgba(250,248,250,.91) 62%, rgba(250,248,250,.35)),
+                    linear-gradient(0deg, rgba(250,248,250,.8), transparent 36%);
+    }
+    html:not([data-theme="bauhaus"]) .cell-main h1 { font-size: 120px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    html:not([data-theme="bauhaus"]) #scrollProgress,
+    html:not([data-theme="bauhaus"]) .cursor-glow { display: none; }
+}
+
+/* ---- V3 皮肤:渐变文字改用紫罗兰系(旧品牌紫→蓝→粉渐变不复用) ---- */
+html:not([data-theme="bauhaus"]) .hero h1 {
+    background-image: linear-gradient(105deg, #211a2b 0%, #4a3a58 55%, #78618f 100%);
+    -webkit-background-clip: text; background-clip: text;
+}
+html:not([data-theme="bauhaus"]) .cell-main h1 {
+    background: none; -webkit-text-fill-color: #211629;
+}
+html:not([data-theme="bauhaus"]) .sec-eyebrow {
+    background: none; -webkit-text-fill-color: #70577f;
+}
+html:not([data-theme="bauhaus"]) .section.dark .sec-eyebrow {
+    background-image: linear-gradient(90deg, #d1b8e3, #b5aaba);
+    -webkit-text-fill-color: transparent;
+}
+
+/* ============================================================
+   V3 界面（第一风格专属 DOM，koda-site-redesign-v3 移植）
+   全部选择器作用域在 .v3 下，不与站点既有类名冲突；
+   reveal 统一挂 .in（site.js 的观察器），主题显隐见下方门控。
+   ============================================================ */
+html[data-theme="bauhaus"] .v3 { display: none; }
+html:not([data-theme="bauhaus"]) .b-only { display: none; }
+html[data-theme="bauhaus"] .nl-v { display: none; }
+html:not([data-theme="bauhaus"]) .nl-b { display: none; }
+html:not([data-theme="bauhaus"]) { scroll-padding-top: 84px; }
+
+.v3 { --paper:#f3f0f2; --white:#faf8fa; --ink:#211a2b; --violet:#78618f; --lav:#c8b5d7; --muted:#766d7d; --line:rgba(48,35,60,.16); --v3serif:"Noto Serif SC",serif; --v3sans:"DM Sans",Arial,sans-serif; --script:"Italianno",cursive; }
+.v3 { background: var(--paper); color: var(--ink); font-family: var(--v3sans); -webkit-font-smoothing: antialiased; }
+.v3 a { color: inherit; text-decoration: none; }
+.v3 .wrap { width: min(1240px, calc(100% - 76px)); margin: auto; }
+.v3 .kicker, .v3 .eyebrow { font-size: 10px; letter-spacing: .3em; color: #70577f; text-transform: uppercase; }
+.v3 .reveal { opacity: 0; transform: translateY(20px); transition: opacity .75s, transform .75s; }
+.v3 .reveal.in { opacity: 1; transform: none; }
+
+/* ---- Hero ---- */
+.v3 .v3-hero { min-height: 760px; height: 100vh; max-height: 920px; position: relative; overflow: hidden; background: #eee9ef; }
+.v3 .hero-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 37%; filter: saturate(.78); transform: scale(1.04); transition: transform .15s ease-out; will-change: transform; }
+.v3 .v3-hero:after { content: ""; position: absolute; z-index: 1; inset: 0; background: linear-gradient(90deg, rgba(250,248,250,.99) 0%, rgba(250,248,250,.97) 27%, rgba(250,248,250,.84) 42%, rgba(250,248,250,.36) 61%, rgba(250,248,250,.03) 84%), linear-gradient(0deg, rgba(250,248,250,.78) 0%, rgba(250,248,250,.18) 22%, transparent 42%); }
+.v3 .hero-inner { position: relative; z-index: 3; min-height: 760px; height: 100%; display: flex; align-items: center; }
+.v3 .hero-copy { width: 53%; max-width: 590px; padding: 42px 34px 42px 0; position: relative; isolation: isolate; animation: v3HeroEnter 1.1s cubic-bezier(.2,.7,.2,1) both; }
+.v3 .hero-copy:before { content: ""; position: absolute; z-index: -1; inset: -34px -42px -30px -34px; pointer-events: none; background: radial-gradient(ellipse at 34% 48%, rgba(250,248,250,.72), rgba(250,248,250,.36) 54%, transparent 78%); }
+.v3 .hero-copy h1 { font: 400 clamp(100px, 14vw, 178px)/.76 var(--script); letter-spacing: -.025em; margin: 35px 0 18px; color: #211629; text-shadow: 0 8px 32px rgba(67,45,83,.08); position: relative; }
+.v3 .hero-copy h1 small { font: 600 12px var(--v3sans); letter-spacing: .42em; display: block; margin: 30px 0 0 12px; color: #403247; }
+.v3 .hero-copy h1:after { content: ""; display: block; width: 70px; height: 1px; background: #9c83ae; margin: 25px 0 0 13px; transform-origin: left; animation: v3LineIn 1s .7s both; }
+.v3 .hero-lead { font: 600 clamp(19px, 2.2vw, 27px)/1.7 var(--v3serif); margin: 30px 0 12px; max-width: 530px; color: #241b2b; text-shadow: 0 1px 10px rgba(255,255,255,.65); }
+.v3 .hero-desc { max-width: 430px; font-size: 12px; font-weight: 500; line-height: 2.05; color: #514757; text-shadow: 0 1px 8px rgba(255,255,255,.8); }
+.v3 .hero-actions { display: flex; align-items: center; gap: 25px; margin-top: 34px; }
+.v3 .button { display: inline-flex; align-items: center; gap: 20px; border: 1px solid #725b85; padding: 14px 20px; font-size: 10px; letter-spacing: .16em; color: #3c2e49; transition: .25s; }
+.v3 .button:hover { background: #6e587f; color: #fff; }
+.v3 .text-link { font-size: 10px; letter-spacing: .16em; color: #64546f; border-bottom: 1px solid #a494b2; padding-bottom: 8px; }
+.v3 .hero-meta { position: absolute; z-index: 4; bottom: 25px; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 9px; font-weight: 600; letter-spacing: .2em; color: #51445b; text-shadow: 0 1px 8px rgba(255,255,255,.9); }
+.v3 .hero-scroll { position: absolute; z-index: 3; right: 26px; bottom: 92px; writing-mode: vertical-rl; font-size: 9px; letter-spacing: .25em; color: #51445e; font-weight: 600; text-shadow: 0 1px 8px rgba(255,255,255,.9); display: flex; align-items: center; gap: 12px; }
+.v3 .hero-scroll:after { content: ""; height: 54px; width: 1px; background: linear-gradient(#8c759f, transparent); animation: v3ScrollPulse 1.8s ease-in-out infinite; }
+@keyframes v3HeroEnter { from { opacity: 0; transform: translateY(28px); filter: blur(5px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes v3LineIn { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes v3ScrollPulse { 50% { transform: scaleY(.55); transform-origin: top; opacity: .35; } }
+
+/* ---- 数据条 ---- */
+.v3 .quick-stats { position: relative; z-index: 4; margin-top: -1px; background: #e8e2e9; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.v3 .stats { display: grid; grid-template-columns: repeat(4, 1fr); }
+.v3 .stat { padding: 25px 28px; border-right: 1px solid var(--line); }
+.v3 .stat:first-child { padding-left: 0; }
+.v3 .stat:last-child { border: 0; }
+.v3 .stat b { font: 500 27px var(--v3serif); color: #483456; }
+.v3 .stat span { display: block; margin-top: 6px; font-size: 9px; letter-spacing: .18em; color: #817687; }
+
+/* ---- V3 通用区块 ---- */
+.v3 .section { padding: 110px 0; }
+.v3 .section-head { display: flex; justify-content: space-between; align-items: end; margin-bottom: 45px; }
+.v3 .section-title { font: 500 clamp(38px, 5vw, 62px)/1.2 var(--v3serif); letter-spacing: .01em; margin: 14px 0 0; }
+.v3 .section-title em { font-style: normal; color: #826b96; }
+.v3 .section-note { font-size: 12px; line-height: 1.9; color: #7c7281; max-width: 300px; }
+.v3 .projects { background: #f8f6f8; }
+.v3 .v3-about { background: #f8f6f8; }
+html:not([data-theme="bauhaus"]) .v3 #about { background: #f8f6f8; }
+
+/* ---- V3 项目卡 ---- */
+.v3 .project-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.v3 .project { position: relative; min-height: 390px; background: #e9e3eb; overflow: hidden; border: 1px solid rgba(68,48,83,.12); transition: transform .35s, box-shadow .35s; display: block; }
+.v3 .project:hover { transform: translateY(-5px); box-shadow: 0 18px 40px rgba(45,30,57,.12); }
+.v3 .project-visual { height: 215px; position: relative; overflow: hidden; background: linear-gradient(135deg, #d8cbdc, #eee9ef); transition: background .4s; }
+.v3 .project-visual:before { content: ""; position: absolute; width: 260px; height: 260px; border: 1px solid rgba(103,78,126,.28); border-radius: 50%; left: 50%; top: 50%; transform: translate(-50%,-50%); box-shadow: 0 0 0 16px rgba(119,92,145,.035), 0 0 0 38px rgba(119,92,145,.025); }
+.v3 .project:nth-child(2) .project-visual { background: linear-gradient(135deg, #d7d0dc, #eee9ef); }
+.v3 .project-mark { position: absolute; inset: 0; display: grid; place-items: center; font: italic 85px var(--v3serif); color: rgba(67,48,83,.62); transition: transform .6s cubic-bezier(.2,.7,.2,1), letter-spacing .6s; }
+.v3 .project:hover .project-mark { transform: scale(1.07) rotate(-3deg); letter-spacing: .03em; }
+.v3 .project-body { padding: 25px 28px 28px; }
+.v3 .project-top { display: flex; justify-content: space-between; align-items: center; }
+.v3 .tag { font-size: 9px; letter-spacing: .18em; color: #806994; }
+.v3 .project-arrow { width: 30px; height: 30px; border: 1px solid rgba(79,57,96,.35); border-radius: 50%; display: grid; place-items: center; color: #655174; }
+.v3 .project h3 { font: 500 22px var(--v3serif); margin: 15px 0 9px; }
+.v3 .project p { font-size: 12px; line-height: 1.9; color: #716777; margin: 0; max-width: 520px; }
+.v3 .stack { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 18px; }
+.v3 .stack span { font-size: 9px; letter-spacing: .06em; padding: 6px 9px; border: 1px solid rgba(91,70,108,.2); color: #695b73; }
+
+/* ---- V3 技能 ---- */
+.v3 .skills { background: #e8e2e9; }
+.v3 .skills-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+.v3 .skill { padding: 28px 26px 30px; background: rgba(250,248,250,.48); border: 1px solid rgba(75,54,90,.13); min-height: 235px; transition: transform .35s, background .35s; }
+.v3 .skill:hover { transform: translateY(-6px); background: rgba(250,248,250,.85); }
+.v3 .skill-no { font: italic 29px var(--script); color: #8a739c; }
+.v3 .skill h3 { font: 500 18px var(--v3serif); margin: 17px 0 15px; }
+.v3 .skill p { font-size: 12px; line-height: 2; color: #716778; margin: 0; }
+.v3 .skill-line { height: 2px; background: rgba(96,72,115,.15); margin-top: 19px; overflow: hidden; }
+.v3 .skill-line i { display: block; height: 100%; width: 0; background: #8b729e; transition: width 1.2s cubic-bezier(.2,.7,.2,1); }
+.v3 .skill.in .skill-line i { width: var(--fill); }
+
+/* ---- V3 关于 ---- */
+.v3 .about-grid { display: grid; grid-template-columns: .8fr 1.2fr; gap: 10%; align-items: center; }
+.v3 .about-card { height: 420px; background: #e4dce7; position: relative; overflow: hidden; }
+.v3 .about-card img { width: 100%; height: 100%; object-fit: cover; object-position: 68% 34%; filter: saturate(.72); }
+.v3 .about-card:after { content: "KODA / PROFILE"; position: absolute; bottom: 16px; left: 18px; color: #fff; font-size: 9px; letter-spacing: .25em; text-shadow: 0 1px 8px #34243e; }
+.v3 .about-copy .lead { font: 500 23px/1.7 var(--v3serif); margin: 20px 0 15px; }
+.v3 .about-copy p { font-size: 12px; line-height: 2.15; color: #706675; }
+.v3 .facts { display: flex; gap: 35px; border-top: 1px solid var(--line); padding-top: 22px; margin-top: 28px; }
+.v3 .fact b { display: block; font: 500 25px var(--v3serif); color: #584267; }
+.v3 .fact span { font-size: 9px; letter-spacing: .15em; color: #84798a; }
+
+/* ---- V3 历程 ---- */
+.v3 .timeline { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin-top: 40px; }
+.v3 .timeline:before { content: ""; position: absolute; left: 0; right: 0; top: 10px; height: 1px; background: rgba(82,59,99,.25); }
+.v3 .milestone { position: relative; padding: 35px 28px 0 0; }
+.v3 .milestone:before { content: ""; position: absolute; top: 5px; left: 0; width: 11px; height: 11px; border-radius: 50%; background: #8b729e; border: 3px solid #e8e2e9; box-shadow: 0 0 0 1px #8b729e; }
+.v3 .milestone small { font-size: 9px; letter-spacing: .2em; color: #897695; }
+.v3 .milestone h3 { font: 500 18px var(--v3serif); margin: 13px 0 9px; }
+.v3 .milestone p { font-size: 11px; line-height: 1.9; color: #746a7b; margin: 0; }
+.v3 .process { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); margin-top: 25px; }
+.v3 .process-step { padding: 23px 20px; border-right: 1px solid var(--line); min-height: 140px; }
+.v3 .process-step:last-child { border: 0; }
+.v3 .process-step b { font: italic 27px var(--script); color: #8a739c; }
+.v3 .process-step h4 { font: 500 14px var(--v3serif); margin: 9px 0; }
+.v3 .process-step p { font-size: 10px; line-height: 1.8; color: #766d7d; margin: 0; }
+
+/* ---- V3 GitHub 深色幕 ---- */
+.v3 .github { background: #211a29; color: #f4eff5; }
+.v3 .github .section-title { color: #f4eff5; }
+.v3 .github .section-note { color: #b5aaba; }
+.v3 .github-panel { display: grid; grid-template-columns: 1.1fr .9fr; border: 1px solid rgba(225,211,237,.2); background: rgba(255,255,255,.035); }
+.v3 .github-main { padding: 34px 38px; border-right: 1px solid rgba(225,211,237,.2); }
+.v3 .github-main h3 { font: 500 22px var(--v3serif); margin: 0 0 12px; }
+.v3 .github-main p { font-size: 12px; line-height: 1.9; color: #b8adbf; max-width: 470px; }
+.v3 .commit-number { font: 400 82px/.95 var(--v3serif); color: #d1b8e3; margin: 25px 0 8px; }
+.v3 .commit-caption { font-size: 9px; letter-spacing: .22em; color: #b8a9c2; }
+.v3 .github-side { padding: 35px; display: flex; flex-direction: column; justify-content: space-between; }
+.v3 .github-side .handle { font: italic 43px var(--script); color: #d2b8e5; }
+.v3 .github-side p { font-size: 12px; line-height: 1.9; color: #b8adbf; }
+.v3 .github-side a { font-size: 10px; letter-spacing: .18em; color: #eadff0; border-bottom: 1px solid #a68cb9; padding-bottom: 8px; align-self: flex-start; }
+.v3 .github-grid { display: grid; grid-template-columns: repeat(26, 1fr); gap: 4px; margin-top: 22px; }
+.v3 .github-grid i { display: block; aspect-ratio: 1; background: rgba(206,184,222,.12); border-radius: 2px; }
+.v3 .github-grid i:nth-child(7n), .v3 .github-grid i:nth-child(11n) { background: rgba(206,184,222,.28); }
+.v3 .github-grid i:nth-child(13n) { background: rgba(206,184,222,.48); }
+.v3 .github-grid i:nth-child(19n) { background: rgba(206,184,222,.72); }
+
+/* ---- V3 联系与弹窗 ---- */
+.v3 .contact { background: #eee9ef; text-align: center; padding: 115px 0; }
+.v3 .contact .section-title { font-size: clamp(42px, 7vw, 78px); }
+.v3 .contact p { font-size: 12px; line-height: 2; color: #766c7e; }
+.v3 .contact a.button { display: inline-flex; margin-top: 20px; }
+.v3 .modal { position: fixed; z-index: 400; inset: 0; background: rgba(25,18,32,.58); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; padding: 22px; }
+.v3 .modal.open { display: flex; animation: v3FadeIn .25s; }
+.v3 .modal-card { width: min(650px, 100%); max-height: 85vh; overflow: auto; background: #f7f3f7; border: 1px solid rgba(255,255,255,.45); padding: 34px; position: relative; animation: v3ModalIn .35s; }
+.v3 .modal-close { position: absolute; right: 18px; top: 14px; border: 0; background: none; font-size: 22px; color: #54425f; cursor: pointer; }
+.v3 .modal-card h3 { font: 500 27px var(--v3serif); margin: 12px 0; }
+.v3 .modal-card p { font-size: 12px; line-height: 2; color: #6f6575; }
+.v3 .modal-card .stack { margin: 20px 0; }
+@keyframes v3FadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes v3ModalIn { from { transform: translateY(18px) scale(.98); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ---- V3 窄屏 ---- */
+@media (max-width: 760px) {
+    .v3 .wrap { width: calc(100% - 38px); }
+    .v3 .v3-hero { height: 850px; min-height: 0; }
+    .v3 .hero-bg { object-position: 62% center; }
+    .v3 .v3-hero:after { background: linear-gradient(90deg, rgba(250,248,250,.98), rgba(250,248,250,.91) 62%, rgba(250,248,250,.35)), linear-gradient(0deg, rgba(250,248,250,.8), transparent 36%); }
+    .v3 .hero-inner { min-height: 850px; align-items: flex-start; padding-top: 160px; }
+    .v3 .hero-copy { width: min(88%, 520px); padding: 30px 0; background: linear-gradient(90deg, rgba(250,248,250,.55), transparent); }
+    .v3 .hero-copy:before { inset: -25px -18px -25px -18px; background: radial-gradient(ellipse at 30% 45%, rgba(250,248,250,.88), rgba(250,248,250,.55) 62%, transparent 100%); }
+    .v3 .hero-copy h1 { font-size: 140px; }
+    .v3 .hero-lead { font-size: 19px; }
+    .v3 .hero-desc { max-width: 290px; }
+    .v3 .hero-meta { font-size: 7px; color: #4d4057; letter-spacing: .12em; }
+    .v3 .hero-scroll { right: 12px; bottom: 75px; }
+    .v3 .stats { grid-template-columns: 1fr 1fr; }
+    .v3 .stat { padding: 19px 15px; border-bottom: 1px solid var(--line); }
+    .v3 .stat:first-child { padding-left: 15px; }
+    .v3 .stat:nth-child(2) { border-right: 0; }
+    .v3 .stat:nth-child(3), .v3 .stat:nth-child(4) { border-bottom: 0; }
+    .v3 .section { padding: 78px 0; }
+    .v3 .section-head { display: block; }
+    .v3 .section-note { margin-top: 16px; }
+    .v3 .project-grid, .v3 .skills-grid, .v3 .about-grid, .v3 .github-panel { grid-template-columns: 1fr; }
+    .v3 .project { min-height: 0; }
+    .v3 .project-visual { height: 190px; }
+    .v3 .skill { min-height: 0; }
+    .v3 .about-grid { gap: 28px; }
+    .v3 .about-card { height: 360px; }
+    .v3 .facts { gap: 22px; }
+    .v3 .github-main { border-right: 0; border-bottom: 1px solid rgba(225,211,237,.2); padding: 28px; }
+    .v3 .github-side { padding: 28px; gap: 22px; }
+    .v3 .commit-number { font-size: 70px; }
+    .v3 .timeline { grid-template-columns: 1fr; gap: 8px; }
+    .v3 .timeline:before { top: 0; bottom: 0; left: 5px; width: 1px; height: auto; right: auto; }
+    .v3 .milestone { padding: 0 0 20px 28px; }
+    .v3 .milestone:before { top: 4px; }
+    .v3 .process { grid-template-columns: 1fr 1fr; }
+    .v3 .process-step:nth-child(2) { border-right: 0; }
+    .v3 .process-step:nth-child(1), .v3 .process-step:nth-child(2) { border-bottom: 1px solid var(--line); }
+    .v3 .github-grid { gap: 3px; }
+    .v3 .cursor-glow { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .v3 .reveal { opacity: 1; transform: none; transition: none; }
+    .v3 .hero-copy, .v3 .hero h1:after, .v3 .hero-scroll:after { animation: none; }
+    .v3 .hero-bg { transform: none; transition: none; }
+}
+
+/* ---- V3 圆角化:卡片/面板 18px,按钮与标签全胶囊,弹窗 22px ---- */
+html:not([data-theme="bauhaus"]) .nav-gh { border-radius: var(--radius-full, 999px); }
+.v3 .project { border-radius: 18px; }
+.v3 .skill { border-radius: 18px; }
+.v3 .about-card { border-radius: 18px; }
+.v3 .github-panel { border-radius: 18px; overflow: hidden; }
+.v3 .process { border-radius: 18px; overflow: hidden; }
+.v3 .modal-card { border-radius: 22px; }
+.v3 .button { border-radius: 999px; padding: 13px 24px; }
+.v3 .stack span { border-radius: 999px; }
+.v3 .modal-card .stack span { border-radius: 999px; }
+
+/* ---- V3 项目卡:视觉区用真实预览图,印记改为图上小角标 ---- */
+.v3 .project-visual { background: #e9e3eb; }
+.v3 .project-visual:before { content: none; }
+.v3 .project-shot {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    filter: saturate(.95); transition: transform .6s cubic-bezier(.2,.7,.2,1);
+}
+.v3 .project:hover .project-shot { transform: scale(1.045); }
+.v3 .project-mark {
+    inset: auto 14px 12px auto; place-items: end;
+    font: 400 10px/1 var(--v3sans); letter-spacing: .24em; text-transform: uppercase;
+    color: #fff; text-shadow: 0 1px 8px rgba(30,18,40,.75);
+    transition: none;
+}
+.v3 .project:hover .project-mark { transform: none; }
+
+/* ---- V3 皮肤:项目详情页组件去苹果化(紫罗兰系) ---- */
+html:not([data-theme="bauhaus"]) .spec:nth-child(1)::before { background: linear-gradient(90deg, #78618f, #9c85b0); }
+html:not([data-theme="bauhaus"]) .spec:nth-child(2)::before { background: linear-gradient(90deg, #8a739c, #ac9abd); }
+html:not([data-theme="bauhaus"]) .spec:nth-child(3)::before { background: linear-gradient(90deg, #9c85b0, #c8b5d7); }
+html:not([data-theme="bauhaus"]) .spec:nth-child(4)::before { background: linear-gradient(90deg, #6e587f, #8a739c); }
+html:not([data-theme="bauhaus"]) .tl-list::before { background: linear-gradient(180deg, #9c85b0, #78618f 55%, #c8b5d7) !important; }
+html:not([data-theme="bauhaus"]) .tl-item:nth-child(1)::before { border-color: #78618f; }
+html:not([data-theme="bauhaus"]) .tl-item:nth-child(2)::before { border-color: #8a739c; }
+html:not([data-theme="bauhaus"]) .tl-item:nth-child(3)::before { border-color: #9c85b0; }
+html:not([data-theme="bauhaus"]) .tl-item:nth-child(4)::before { border-color: #a99cc0; }
+html:not([data-theme="bauhaus"]) .tl-item:nth-child(5)::before { border-color: #c8b5d7; }
+html:not([data-theme="bauhaus"]) .section.dark .stat:nth-child(1) .cnt { background-image: linear-gradient(135deg, #ffffff 25%, #d1b8e3); }
+html:not([data-theme="bauhaus"]) .section.dark .stat:nth-child(2) .cnt { background-image: linear-gradient(135deg, #ffffff 25%, #c8b5d7); }
+html:not([data-theme="bauhaus"]) .section.dark .stat:nth-child(3) .cnt { background-image: linear-gradient(135deg, #ffffff 25%, #d8c9e6); }
+html:not([data-theme="bauhaus"]) .stat:nth-child(2) em { color: #c8b5d7; }
+html:not([data-theme="bauhaus"]) .stat:nth-child(3) em { color: #d8c9e6; }
+html:not([data-theme="bauhaus"]) table.exp tr.best td { background: linear-gradient(90deg, rgba(120,97,143,.30), rgba(200,181,215,.14)); }
+
+/* ---- V3 柔光:提到内容层之上(hero 渐变遮罩曾盖住它),浓度贴近原版 ---- */
+/* 与原版一致:保持 z-index:1——hero 的渐变遮罩盖住它(首屏无影子),
+   往下滚到各区块时才透出来;不额外提层。 */
+html:not([data-theme="bauhaus"]) .cursor-glow {
+    width: 260px; height: 260px;
+    background: radial-gradient(circle, rgba(166,137,190,.13), transparent 68%);
+}
+
+/* ---- V3 皮肤:去掉苹果风的马卡龙渐变底,黑幕辉光换紫罗兰系 ---- */
+html:not([data-theme="bauhaus"]) body { background: #f3f0f2; }
+html:not([data-theme="bauhaus"]) body::before { content: none; }
+html:not([data-theme="bauhaus"]) .section.dark::before {
+    top: 24%;
+    background: radial-gradient(ellipse, rgba(120,97,143,.32), transparent 62%);
+}
+
+/* ---- V3 皮肤:项目详情页直角元件圆角化 ---- */
+html:not([data-theme="bauhaus"]) .spec-grid {
+    border-radius: 18px; overflow: hidden;
+    border: 1px solid rgba(140,130,180,0.14);
+}
+html:not([data-theme="bauhaus"]) .spec { border-bottom: none; border-right: none; }
+html:not([data-theme="bauhaus"]) .spec-grid .spec:nth-child(odd) { border-right: 1px solid rgba(140,130,180,0.14); }
+html:not([data-theme="bauhaus"]) .spec-grid .spec:nth-last-child(-n+2) { border-bottom: none; }
+html:not([data-theme="bauhaus"]) .spec-grid .spec:nth-child(1), html:not([data-theme="bauhaus"]) .spec-grid .spec:nth-child(2) { border-bottom: 1px solid rgba(140,130,180,0.14); }
+html:not([data-theme="bauhaus"]) table.exp {
+    border-collapse: separate; border-spacing: 0;
+    border-radius: 14px; overflow: hidden;
+}
+
+/* ---- V3 皮肤:项目页 hero 按钮胶囊化 ---- */
+html:not([data-theme="bauhaus"]) .hero-links .arrow-link { border-radius: 999px; }

@@ -169,12 +169,16 @@
     var commitEl = document.getElementById('commitCount');
     if (commitEl) {
         var cachedCommits = localStorage.getItem('gh-commit-total');
-        if (cachedCommits) commitEl.textContent = cachedCommits;
+        if (cachedCommits) {
+            commitEl.textContent = cachedCommits;
+            document.querySelectorAll('.commit-mirror').forEach(function (m) { m.textContent = cachedCommits; });
+        }
         fetch('https://api.github.com/search/commits?q=author:Koda987&per_page=1')
             .then(function (res) { return res.json(); })
             .then(function (d) {
                 if (d && d.total_count > 0) {
                     commitEl.textContent = d.total_count;
+                    document.querySelectorAll('.commit-mirror').forEach(function (m) { m.textContent = d.total_count; });
                     localStorage.setItem('gh-commit-total', d.total_count);
                 }
             })
@@ -190,20 +194,33 @@
         'font-size:12px;color:#6e6e73;line-height:1.8;'
     );
 
-    /* ---------- 9. 首屏 Bento 卡逐张浮现（每张错峰 180ms，页面打开即开始） ---------- */
+    /* ---------- 9. 首屏 Bento 卡逐张浮现（每张错峰 180ms） ----------
+       释放时机可被开屏接管：官网风首页首访先播开屏，播完再错峰放行。 */
     var cells = document.querySelectorAll('.bento .reveal');
-    if (cells.length && !reduced) {
-        cells.forEach(function (el, i) {
-            el.style.transitionDelay = (i * 180) + 'ms';
-        });
-        void document.body.offsetWidth;         // 先锁延迟，再释放压制的样式
-        document.body.classList.remove('boot-hold');
-        setTimeout(function () {                // 序列结束后清掉内联延迟，
-            cells.forEach(function (el) { el.style.transitionDelay = ''; });
-            document.body.classList.add('bento-settled');   // 并把卡片悬浮切到快速弹性
-        }, 3200);
+    var bentoReleased = false;
+    var releaseBento = function () {
+        if (bentoReleased) return;
+        bentoReleased = true;
+        if (cells.length && !reduced) {
+            cells.forEach(function (el, i) {
+                el.style.transitionDelay = (i * 180) + 'ms';
+            });
+            void document.body.offsetWidth;     // 先锁延迟，再释放压制的样式
+            document.body.classList.remove('boot-hold');
+            setTimeout(function () {            // 序列结束后清掉内联延迟，
+                cells.forEach(function (el) { el.style.transitionDelay = ''; });
+                document.body.classList.add('bento-settled');   // 并把卡片悬浮切到快速弹性
+            }, 3200);
+        } else {
+            document.body.classList.remove('boot-hold');
+        }
+    };
+    if (introEligible()) {                      // 函数声明在下面第 10 节，已提升
+        playIntro();
+        document.addEventListener('koda:intro-done', releaseBento);
+        setTimeout(releaseBento, 8500);         // 兜底：开屏任何卡壳也必放行
     } else {
-        document.body.classList.remove('boot-hold');
+        releaseBento();
     }
 
     var pageTitle = document.title;
@@ -313,4 +330,147 @@
         // 原生 VT 路径：让位动画先走 160ms，再触发导航（VT 拍旧页快照时已完成让位）
         setTimeout(function () { location.href = href; }, vtActive ? 160 : 450);
     });
+    /* ---------- 10. 网页风格切换（默认 Apple 白 ⇄ 官网页风 coo） ----------
+       <html data-theme="bauhaus"> 整体换肤（style.css 末段），localStorage 记忆，
+       页面 <head> 里的内联脚本负责首帧前恢复、避免闪白；
+       切换时广播 koda:style 事件，pet.js 听到后进入/退出「主持人模式」。 */
+    var styleBtn = document.getElementById('styleToggle');
+    if (styleBtn) {
+        var syncBtn = function () {
+            styleBtn.classList.toggle('on', document.documentElement.dataset.theme === 'bauhaus');
+        };
+        syncBtn();
+        styleBtn.addEventListener('click', function () {
+            var next = document.documentElement.dataset.theme === 'bauhaus' ? 'apple' : 'bauhaus';
+            if (next === 'bauhaus') document.documentElement.dataset.theme = 'bauhaus';
+            else delete document.documentElement.dataset.theme;
+            try { localStorage.setItem('koda.style', next); } catch (e) {}
+            syncBtn();
+            // 换肤的 500ms 里给全站挂过渡，颜色平滑滑过去而不是硬切
+            document.documentElement.classList.add('style-switching');
+            setTimeout(function () {
+                document.documentElement.classList.remove('style-switching');
+            }, 500);
+            if (next === 'bauhaus') playIntro();     // 切到包豪斯风：播开屏（函数在第 11 节，已提升）
+            if (next === 'bauhaus' && !document.getElementById('bh-font')) {
+                var l = document.createElement('link');
+                l.id = 'bh-font'; l.rel = 'stylesheet';
+                l.href = 'https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=Noto+Sans+SC:wght@500;900&display=swap';
+                document.head.appendChild(l);
+            }
+            document.dispatchEvent(new CustomEvent('koda:style', { detail: { theme: next } }));
+        });
+    }
+    /* ---------- 10.5 品牌首屏滚动同步 ----------
+       滚离品牌首屏一半后给 body 挂 past-brand,官网风下顶栏才浮现;
+       必须常驻——只在开屏时注册的话,翻页重访(不开屏)顶栏会永远隐身。 */
+    var syncBrand = function () {
+        var brand = document.querySelector('.brand-screen');
+        document.body.classList.toggle('past-brand',
+            !brand || scrollY > innerHeight * 0.5);   // 无品牌屏的页面(项目详情页)恒显示
+    };
+    addEventListener('scroll', syncBrand, { passive: true });
+    addEventListener('load', syncBrand);
+    document.addEventListener('koda:style', syncBrand);
+    syncBrand();
+
+    /* ---------- 11. 官网风开屏（致敬 coo.palailab.org 的 opening） ----------
+       条件：官网风 + 首页 + 本会话首次 + 未减弱动效。空屏上打字 "Koda... Koda?"
+       （光标先空跳 → 首个词 → 省略号 → 停顿 → 第二个词 → 问号），随后文字淡出、
+       揭幕淡出，Bento 卡错峰浮现、三色环缓缓亮起；鲸鱼在 pet.js 里等同一事件
+       踩着揭幕空降登场。 */
+    function introEligible() {
+        var firstOfSession = false;
+        try { firstOfSession = !sessionStorage.getItem('koda.intro'); } catch (e) {}
+        return document.documentElement.dataset.theme === 'bauhaus'
+            && /(^|\/)(index\.html)?$/.test(location.pathname)     // 首页（/ 或 index.html）
+            && !reduced
+            && firstOfSession;
+    }
+    function playIntro() {
+        try { sessionStorage.setItem('koda.intro', '1'); } catch (e) {}
+        var root = document.documentElement;
+        root.setAttribute('data-intro', '');
+        var veil = document.createElement('div');
+        veil.id = 'intro-screen';
+        veil.innerHTML = '<div class="intro-line"><span class="intro-text"></span><span class="intro-caret"></span></div>';
+        document.body.appendChild(veil);
+        var text = veil.querySelector('.intro-text');
+        var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+        // 逐字弹出（官网 glyph-pop:每个字从下方以弹簧曲线跳进来,光标跟在后面）
+        var type = function (str, ms) {
+            return new Promise(function (r) {
+                var i = 0;
+                (function tick() {
+                    if (i < str.length) {
+                        var g = document.createElement('span');
+                        g.className = 'g';
+                        g.textContent = str[i++];
+                        text.appendChild(g);
+                        setTimeout(tick, ms);
+                    } else r();
+                })();
+            });
+        };
+        var done = false;
+        var finish = function () {
+            if (done) return;
+            done = true;
+            scrollTo(0, 0);   /* 开屏期间若滚轮带走了背后内容,揭幕前先归位(仍被盖着,看不见) */
+            veil.querySelector('.intro-line').classList.add('out');
+            setTimeout(function () {
+                veil.classList.add('out');
+                setTimeout(function () {
+                    veil.remove();
+                    root.removeAttribute('data-intro');
+                    document.dispatchEvent(new CustomEvent('koda:intro-done'));
+                }, 600);
+            }, 300);
+        };
+        wait(550)                               // 光标先空跳一会儿
+            .then(function () { return type('Koda', 120); })       // 名字先落
+            .then(function () { return wait(350); })
+            .then(function () { return type('，一名正在沉淀的开发者', 170); })   // 标语慢打
+            .then(function () { return wait(650); })               // 官网 questionHold:满句停留
+            .then(function () {                                    // 字"活过来"的时刻:鲸鱼此刻登场/蹦一下
+                document.dispatchEvent(new CustomEvent('koda:intro-alive'));
+                return wait(900);
+            })
+            .then(finish);
+        setTimeout(finish, 8000);                // 兜底：任何卡壳 8 秒内必揭幕
+    }
+})();
+
+    /* ---------- 12. V3 界面（第一风格）：人设图视差 ---------- */
+    (function () {
+        var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var v3 = document.querySelector('.v3');
+        if (!v3) return;
+        var hb = v3.querySelector('.hero-bg');
+        if (hb && !reduced) {
+            addEventListener('scroll', function () {
+                if (scrollY < innerHeight) hb.style.transform = 'scale(1.04) translateY(' + (scrollY * .10).toFixed(1) + 'px)';
+            }, { passive: true });
+        }
+    })();
+
+/* ================= V3 皮肤细节：滚动进度条 + 鼠标柔光 =================
+   节点常驻、CSS 按主题门控显示（html:not([data-theme="bauhaus"])），
+   切到包豪斯风自动隐藏，无需拆装监听。 */
+(function () {
+    var bar = document.createElement('div'); bar.id = 'scrollProgress';
+    var glow = document.createElement('div'); glow.className = 'cursor-glow';
+    document.body.prepend(bar); document.body.prepend(glow);
+    var upd = function () {
+        var max = document.documentElement.scrollHeight - innerHeight;
+        bar.style.width = (max > 0 ? (scrollY / max) * 100 : 0) + '%';
+    };
+    addEventListener('scroll', upd, { passive: true }); upd();
+    if (matchMedia('(pointer:fine)').matches) {
+        document.addEventListener('pointermove', function (e) {
+            glow.style.opacity = '.9';
+            glow.style.left = e.clientX + 'px';
+            glow.style.top = e.clientY + 'px';
+        });
+    }
 })();
