@@ -15,6 +15,77 @@ import { createPet } from './vendor/kit/body.js';
 
 import { createWhaleFigure } from './vendor/whale/figure.js';
 
+/* ---------- 资源接续缓存(IndexedDB) ----------
+   跨页过渡结束的瞬间,新页引擎还要重新拉模型与贴图、建 WebGL 纹理,
+   舞台这段时间是空的 → 宠物"消失一会儿"才出现。
+   把全部 pet 资源存进 IndexedDB,翻页时秒读秒显(不赌 HTTP 缓存与网络) */
+const PET_ASSETS_V = 1;
+const petMem = new Map();
+const petIDB = {
+  open: () => new Promise(res => { try { const q = indexedDB.open('koda-pet-assets', 1);
+      q.onupgradeneeded = () => { const db = q.result; if (!db.objectStoreNames.contains('res')) db.createObjectStore('res'); };
+      q.onsuccess = () => res(q.result); q.onerror = () => res(null); } catch { res(null); } }),
+  all: () => new Promise(res => { petIDB.open().then(db => { if (!db) return res(null);
+      const os = db.transaction('res').objectStore('res');
+      const gk = os.getAllKeys(), gv = os.getAll(); let k = null, v = null, n = 0;
+      gk.onsuccess = () => { k = gk.result; if (++n === 2) res([k, v]); };
+      gv.onsuccess = () => { v = gv.result; if (++n === 2) res([k, v]); };
+      gk.onerror = gv.onerror = () => res(null); }).catch(() => res(null)); }),
+  put: (url, blob) => new Promise(res => { petIDB.open().then(db => { if (!db) return res();
+      const tx = db.transaction('res', 'readwrite');
+      tx.objectStore('res').put(blob, url);
+      tx.objectStore('res').put(new Blob([String(PET_ASSETS_V)]), '<<ver>>');
+      tx.oncomplete = () => res(); tx.onerror = () => res(); }).catch(() => res()); }),
+};
+const isPetAsset = u => { try { return /\/pet\/vendor\//.test(new URL(u, location.href).href); } catch { return false; } };
+const rawFetch = window.fetch.bind(window);
+window.fetch = (input, init) => {
+  const url = typeof input === 'string' ? input : input.url;
+  if (!isPetAsset(url)) return rawFetch(input, init);
+  if (petMem.has(url)) return Promise.resolve(new Response(petMem.get(url).slice(0)));
+  return petIDB.all().then(([keys, vals]) => {
+    if (keys) { const i = keys.indexOf(url);
+      if (i !== -1) { petMem.set(url, vals[i]); return new Response(vals[i].slice(0)); } }
+    return rawFetch(input, init).then(r => { if (r.ok) r.clone().blob()
+      .then(b => { petMem.set(url, b); petIDB.put(url, b); }).catch(() => {});
+      return r; });
+  });
+};
+/* 贴图走 new Image().src(figure.js 内部),同样接缓存:命中直接给 blob: 地址,零网络 */
+const NativeImage = window.Image;
+const nativeSrc = Object.getOwnPropertyDescriptor(NativeImage.prototype, 'src');
+window.Image = function () {
+  const im = new NativeImage();
+  let real = '';
+  Object.defineProperty(im, 'src', {
+    get() { return real; },
+    set(v) {
+      real = v;
+      try {
+        const url = new URL(v, location.href).href;
+        if (!isPetAsset(url)) { nativeSrc.set.call(im, v); return; }
+        const hit = petMem.get(url);
+        if (hit) { nativeSrc.set.call(im, URL.createObjectURL(hit)); return; }
+        petIDB.all().then(([keys, vals]) => {
+          if (keys) { const i = keys.indexOf(url);
+            if (i !== -1) { petMem.set(url, vals[i]); nativeSrc.set.call(im, URL.createObjectURL(vals[i])); return; } }
+          nativeSrc.set.call(im, v);
+          rawFetch(url).then(r => r.ok ? r.blob() : null)
+            .then(b => { if (b) { petMem.set(url, b); petIDB.put(url, b); } }).catch(() => {});
+        }).catch(() => nativeSrc.set.call(im, v));
+      } catch { nativeSrc.set.call(im, v); }
+    },
+    configurable: true,
+  });
+  return im;
+};
+// 续访预热:把 IDB 里的资源提前读进内存(版本不符即弃用,走首次加载路径重建)
+petIDB.all().then(([keys, vals]) => { if (!keys) return;
+  const vi = keys.indexOf('<<ver>>');
+  if (vi !== -1 && new TextDecoder().decode(vals[vi]) !== String(PET_ASSETS_V)) return;
+  keys.forEach((k, i) => { if (k !== '<<ver>>') petMem.set(k, vals[i]); });
+}).catch(() => {});
+
 /* ---------- 门控 ---------- */
 const webglOK = (() => {
   try {
@@ -42,16 +113,22 @@ const prev = loadState();   // 上页留下的位置;有它 = 续访,新页要�
 let stage = null, svgEl = null;
 if (!ready()) {
   /* fixed 恰好覆盖视口;整层 pointer-events:none,鼠标交互全部走
-     document 级监听 + 引擎自己的命中测试,不挡页面任何点击 */
-  stage = document.createElement('div');
-  stage.id = 'pet-stage';
-  stage.innerHTML =
-    '<svg aria-hidden="true">' +
-      '<ellipse class="shadow" cx="0" cy="0" rx="0" ry="0"/>' +
-      '<g class="pet"></g>' +
-      '<g class="fx"></g>' +
-    '</svg>';
-  document.body.appendChild(stage);
+     document 级监听 + 引擎自己的命中测试,不挡页面任何点击。
+     舞台 DOM 由各页 body 开头的内联脚本在首帧前建好(跨文档过渡的配对前提,
+     否则切页瞬间旧快照宠物变孤儿飞走、新宠物又活过来 = 两只);
+     这里找不到才兜底自建(比如内联脚本被扩展拦掉) */
+  stage = document.getElementById('pet-stage');
+  if (!stage) {
+    stage = document.createElement('div');
+    stage.id = 'pet-stage';
+    stage.innerHTML =
+      '<svg aria-hidden="true">' +
+        '<ellipse class="shadow" cx="0" cy="0" rx="0" ry="0"/>' +
+        '<g class="pet"></g>' +
+        '<g class="fx"></g>' +
+      '</svg>';
+    document.body.appendChild(stage);
+  }
   svgEl = stage.querySelector('svg');
 }
 
@@ -337,7 +414,6 @@ async function boot() {
      官网风下她不只是背景吉祥物,而是页面主持:登场走位迎宾、滚到区块先
      走到内容旁边再开口讲、安静时偶尔挥手。切回默认风格则恢复纯闲逛。 */
   let hostMode = document.documentElement.dataset.theme === 'bauhaus';
-  const HOST_GREET = ['官网风格,主持模式上线~', '换好衣服啦,今天由我带你逛~', '这个风格是不是很眼熟?'];
   const arrive = async (x, ms) => {
     const t0 = performance.now();
     while (performance.now() - t0 < ms) {
@@ -444,7 +520,7 @@ async function boot() {
             }
           } },
       ]);
-    } else say(pick(HOST_GREET), { hold: 2400 });
+    }   /* 用户要求:切风格迎宾词已移除,静默就位 */
     clearInterval(guard);
     } finally { if (!aborted) entranceBusy = false; }
   }
@@ -772,8 +848,8 @@ async function boot() {
     brand: ['回来啦~', '又见面啦~', '这一屏看完,下面的更有料~'],
     projects: ['两张卡都能点进复盘,数据都在里面~', '左边 RAG,右边街机,都能玩真的~'],
     'b-projects': ['两张卡都能点进复盘,数据都在里面~', '左边 RAG,右边街机,都能玩真的~'],
-    about: ['这里是他自己的小传,比简历真诚~', '看完这页,你就认识他啦~', '你能让我的主人给我挣大白饭吗？'],
-    'b-about': ['这里是他自己的小传,比简历真诚~', '看完这页,你就认识他啦~'],
+    about: ['看完这页,你就认识他啦~', '你能让我的主人给我挣大白饭吗？'],
+    'b-about': ['看完这页,你就认识他啦~'],
   };
   function entryLine(id) {
     if (featMode || entranceBusy) return;                     // 演出/迎宾说话时不抢

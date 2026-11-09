@@ -8,9 +8,22 @@
     <link rel="icon" type="image/png" href="assets/favicon.png">
     <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
     <link rel="preload" href="/assets/fonts/dg4n_p3sv6gCJkwzT6RXhpwocwM.woff2" as="font" type="font/woff2" crossorigin><script>try{var __s=localStorage.getItem("koda.style");if(__s==="coo")__s="bauhaus";if(!__s)__s="bauhaus";var __b=__s==="bauhaus";if(__b)document.documentElement.dataset.theme="bauhaus";var lf=document.createElement("link");lf.rel="stylesheet";lf.href="/assets/fonts/latin.css";document.head.appendChild(lf);var l=document.createElement("link");l.rel="stylesheet";l.href=__b?"https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@500;900&display=swap":"https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&display=swap";document.head.appendChild(l)}catch(e){}</script>
-    <link rel="stylesheet" href="assets/style.css?v=20261107-114">
+    <link rel="stylesheet" href="assets/style.css?v=20261107-118">
 </head>
 <body class="boot-hold">
+
+<!-- 宠物舞台:首帧渲染前同步建好,跨文档过渡的新旧快照才能配成一组(否则切页瞬间会出现两只) -->
+<script>(function () {
+  try {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var c = document.createElement('canvas');
+    if (!(c.getContext('webgl2') || c.getContext('webgl'))) return;
+    var st = document.createElement('div');
+    st.id = 'pet-stage';
+    st.innerHTML = '<svg aria-hidden="true"><ellipse class="shadow" cx="0" cy="0" rx="0" ry="0"/><g class="pet"></g><g class="fx"></g></svg>';
+    document.body.appendChild(st);
+  } catch (e) {}
+})();</script>
 
 <!-- 安全兜底：即使 site.js 出错，1.2 秒后也强制显示内容；官网风开屏在播时让位给开屏节奏 -->
 <script>(function () {
@@ -178,7 +191,7 @@
     <div class="container">◈ Koda · 2026 · 本站已运行 <span id="siteDays">1</span> 天 · 用代码和数据说话</div>
 </footer>
 
-<script src="assets/site.js?v=20261107-114"></script>
-<script type="module" src="assets/pet/pet.js?v=20261107-114"></script>
+<script src="assets/site.js?v=20261107-118"></script>
+<script type="module" src="assets/pet/pet.js?v=20261107-118"></script>
 </body>
 </html>
