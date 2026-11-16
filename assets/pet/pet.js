@@ -1203,6 +1203,13 @@ async function boot() {
       + '<button type="button" class="pt-btn" data-act="dance" aria-label="跳个舞" title="跳个舞">' + I.dance + '</button>'
       + '<button type="button" class="pt-btn" data-act="chat" aria-label="聊聊天" title="聊聊天">' + I.chat + '</button>'
       + '<button type="button" class="pt-btn pt-like" data-act="like" aria-label="点个赞" title="点个赞"><span class="pt-like-badge">0</span>' + I.like + '</button>';
+    /* 点赞徽章:先亮本机数,远端全站数到了再替换(常量在模块后段,延迟到求值完再碰) */
+    setTimeout(() => {
+      const lb = toolsEl.querySelector('.pt-like-badge');
+      if (!lb) return;
+      try { lb.textContent = likeFmt(parseInt(localStorage.getItem(LIKE_KEY), 10) || 0); } catch { /* 读不到就算了 */ }
+      fillLikeBadge(lb);
+    }, 0);
     toolsEl.addEventListener('pointerenter', () => { overTools = true; });
     toolsEl.addEventListener('pointerleave', () => { overTools = false; });
     toolsEl.addEventListener('click', e => {
@@ -1572,24 +1579,37 @@ async function boot() {
   };
 
   /* ---------- 点赞:白底圆钮 + 粉色实心爱心 + 计数徽章(参考 lvyovo-wiki)。
-     纯静态站没有后端:计数先记本机 localStorage;以后挂上自己的计数服务(LIKE_API),
-     填上地址就自动升级成全站共享计数(参考站用的是自建 Cloudflare Worker) ---------- */
-  const LIKE_API = '';   // 例如 'https://你的计数服务/api/like?slug=koda';留空=仅本机计数
-  const LIKE_KEY = 'koda.pet.likes';
+     计数走 Abacus(免费计数 API,CORS 开箱即用,GitHub Pages 可直连):
+     /hit 自增并返回 {value: n},全站访客共享同一个数;/get 只读不增。
+     远端拉取失败(服务挂/被墙/超时)自动退回本机 localStorage——按钮永远有反应。
+     想换自建服务(Cloudflare Worker 等):改 LIKE_API 一行,返回 {value} 同形状即可 ---------- */
+  const LIKE_API = 'https://abacus.jasoncameron.dev';
+  const LIKE_NS = 'koda987-site';
+  const LIKE_NAME = 'like';
+  const LIKE_KEY = 'koda.pet.likes';   // 本机兜底计数
+  const likeFmt = n => n > 999 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(n);
   let likeBusy = false;
-  async function likeOnce(btn) {
+  let likeKnown = null;   // 最近一次已知的全站赞数(开屏 get 填充,点赞 hit 校准)
+  function likeOnce(btn) {
     if (likeBusy) return;
     likeBusy = true;
-    let count = 0;
-    try { count = (parseInt(localStorage.getItem(LIKE_KEY), 10) || 0) + 1; } catch { count = 1; }
-    if (LIKE_API) {
-      try { const r = await fetch(LIKE_API + '&t=' + Date.now(), { method: 'POST' });
-        if (r.ok) { const j = await r.json().catch(() => null); if (j && typeof j.count === 'number') count = j.count; } } catch {}
-    } else {
-      try { localStorage.setItem(LIKE_KEY, String(count)); } catch {}
-    }
+    setTimeout(() => { likeBusy = false; }, 350);   // 350ms 后即可再点:别让远端慢吞掉点击(每次点击各记一票)
+    /* 乐观更新:点击瞬间就 +1 亮出来(用已知全站数或本机数),远端结果到了再校准——
+       网络再慢按钮也有即时反馈 */
+    const base = likeKnown ?? (() => { try { return parseInt(localStorage.getItem(LIKE_KEY), 10) || 0; } catch { return 0; } })();
+    const count = base + 1;
     const badge = btn.querySelector('.pt-like-badge');
-    if (badge) badge.textContent = count > 999 ? (count / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(count);
+    if (badge) badge.textContent = likeFmt(count);
+    try { localStorage.setItem(LIKE_KEY, String(count)); } catch {}
+    /* 远端自增:后台跑,不挡爱心演出;结果只增不减地校准徽章 */
+    if (LIKE_API) (async () => {
+      try {
+        const c = new AbortController(); const t = setTimeout(() => c.abort(), 2500);
+        const r = await fetch(`${LIKE_API}/hit/${LIKE_NS}/${LIKE_NAME}`, { signal: c.signal }).finally(() => clearTimeout(t));
+        const j = await r.json();
+        if (j && typeof j.value === 'number' && j.value >= count) { likeKnown = j.value; if (badge) badge.textContent = likeFmt(j.value); }
+      } catch { /* 远端不行:乐观数已亮出,本机也记了 */ }
+    })();
     btn.classList.add('burst');
     setTimeout(() => btn.classList.remove('burst'), 700);
     // 爱心迸发:小爱心从按钮四散飘起
@@ -1607,7 +1627,16 @@ async function boot() {
     }
     try { ctl.doWord('love'); } catch {}   // 点赞爱心眼(表情词走 ctl.do)
     say(pick(['谢谢喜欢~', '收到一颗心，数据不说谎！', '哇，被喜欢啦~']), { hold: 1800 });
-    setTimeout(() => { likeBusy = false; }, 350);
+  }
+  /* 开屏就把全站共享的赞数填上(拿不到就维持本机数,不打扰任何人) */
+  async function fillLikeBadge(badge) {
+    if (!badge || !LIKE_API) return;
+    try {
+      const c = new AbortController(); const t = setTimeout(() => c.abort(), 6000);
+      const r = await fetch(`${LIKE_API}/get/${LIKE_NS}/${LIKE_NAME}`, { signal: c.signal }).finally(() => clearTimeout(t));
+      const j = await r.json();
+      if (j && typeof j.value === 'number' && j.value >= (parseInt(badge.textContent, 10) || 0)) { likeKnown = j.value; badge.textContent = likeFmt(j.value); }
+    } catch { /* 拿不到就维持本机数 */ }
   }
   ('requestIdleCallback' in window ? requestIdleCallback : setTimeout)(() => { try { ctl.figure.preload && ctl.figure.preload(); } catch {} });
   /* ?petdebug:控制台里看她的状态、已说过的台词和冷却,调台词节奏用 */
