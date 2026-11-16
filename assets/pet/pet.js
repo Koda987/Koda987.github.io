@@ -183,13 +183,29 @@ const petImgLoadRetry = url => new Promise((ok, bad) => {
   im.src = url;
   if (im.complete) window.__lp.cached = (window.__lp.cached || 0) + 1;
 });
-const petLoadImage = u => {
+/* 贴图加载:fetch→blob→createImageBitmap——位图本身就是解码完成的像素,从根上消灭
+   "HTMLImageElement 解码时序(排队超时/永不落定)→texImage2D 传未解完像素→蓝色积木块"
+   这一整类 bug(线上远端加载时必现,本地快到看不出)。顺带:fetch 走本模块顶部的
+   IDB 拦截层,贴图在 IndexedDB 也有了缓存;引擎的 texImage2D/drawImage 都原生收位图 */
+const loadBitmap = async url => {
+  for (let i = 0; i < 2; i++) {
+    try {
+      const c = new AbortController(); const timer = setTimeout(() => c.abort(), 8000);
+      const r = await fetch(url, { signal: c.signal }).finally(() => clearTimeout(timer));
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const blob = await r.blob();
+      if (!blob.size) throw new Error('空响应');
+      return await createImageBitmap(blob);
+    } catch (e) { if (i === 1) throw e; }   // 失败重试一次(远端偶发断流)
+  }
+};
+const petLoadImage = async u => {
   const url = String(u);                                 // figure.js 传入的是 URL 对象,先转字符串
-  return petImgLoadRetry(url).then(decodeImg, () => petImgLoadRetry(url).then(decodeImg)).then(img => img, () => {
-    const fb = url.replace(/schemes\/[^/]+\//, '');   // schemes/<id>/tex|x/xx.png → 原版(deepseek)同路径
-    return (/^(tex|feat)\//.test(fb) ? petImgLoadRetry(fb) : petImgLoadRetry(TRANSPARENT)).then(decodeImg)
-      .catch(() => petImgLoadRetry(TRANSPARENT).then(decodeImg));
-  });
+  try { return await loadBitmap(url); } catch { /* 404/网络:走回退 */ }
+  const fb = url.replace(/schemes\/[^/]+\//, '');        // schemes/<id>/tex|x/xx.png → 原版(deepseek)同路径
+  try { if (/^(tex|feat)\//.test(fb)) return await loadBitmap(new URL('vendor/whale/' + fb, PET_BASE).href); } catch {}
+  try { return await loadBitmap(TRANSPARENT); } catch { /* 连透明位图都不行:退回旧 Image 路径保底 */ }
+  return petImgLoadRetry(TRANSPARENT).then(decodeImg);
 };
 const DRESS_KEY = 'koda.pet.dress';
 /* 按钮 hover 的点缀色跟随当前配色(官网同款:用的就是宠物的眼睛色) */
