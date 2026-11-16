@@ -7,6 +7,7 @@
 - `kit/rig.js` — WebGL 骨架渲染器(Live2D 风格)
 - `whale/figure.js` — DeepSeek 鲸鱼角色的骨架与表情绘制
 - `whale/model.json`、`whale/tex/`、`whale/feat/` — 模型与贴图
+- `whale/schemes/`、`whale/outfits/` — 换装系统资源(8 套配色 × 3 套服装;站内"双击宠物"换装用)
 
 上述 JS 代码以 AGPL-3.0 授权(见上游仓库 LICENSE);鲸鱼美术素材的版权归其原作者所有,
 上游 THIRD_PARTY_NOTICES.md 声明未授权在别处使用,个人非商业展示使用请自行评估。

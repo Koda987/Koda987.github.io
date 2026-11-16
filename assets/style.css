@@ -1293,13 +1293,13 @@ html.pet-grab, html.pet-grab * {
 /* 对白气泡（pet.js 动态插入）：跟随她头顶，--tail 是小尾巴的横向位置 */
 .pet-bubble {
     position: absolute; z-index: 2;
-    width: max-content; min-width: 46px; max-width: min(340px, calc(100vw - 20px));   /* 官网:宽度随打字自然长,上限折行 */
-    min-height: 1.6em;
-    padding: 12px 17px; border-radius: 16px;
-    background: rgba(255,255,255,0.96);
-    border: 1px solid var(--hairline-soft);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
-    font-size: 16px; line-height: 1.6; color: var(--text);
+    width: max-content; min-width: 46px; max-width: min(300px, calc(100vw - 20px));   /* 官网:宽度随打字自然长,上限折行 */
+    min-height: 1.55em;
+    padding: 10px 14px; border-radius: 18px;
+    background: rgba(255,255,255,0.98);
+    border: 2.5px solid var(--pet-ink, #322f3d);
+    box-shadow: 0 8px 22px rgba(0,0,0,0.16);
+    font-size: 14.5px; line-height: 1.55; color: var(--text);
     pointer-events: none;
     transform-origin: var(--tail, 50%) calc(100% + 10px);   /* 官网:从尾巴锚点"长"出来 */
 }
@@ -1309,10 +1309,10 @@ html.pet-grab, html.pet-grab * {
 @keyframes petBubbleOut { to { transform: translateY(4px) scale(0.96); opacity: 0; } }
 .pet-bubble.ask { min-width: 236px; }   /* 官网 .ask:给选项按钮预留宽度 */
 .pet-bubble::after {
-    content: ""; position: absolute; left: var(--tail, 40px); bottom: -5px;
-    width: 10px; height: 10px; background: rgba(255,255,255,0.96);
-    border-right: 1px solid var(--hairline-soft);
-    border-bottom: 1px solid var(--hairline-soft);
+    content: ""; position: absolute; left: var(--tail, 40px); bottom: -7px;
+    width: 12px; height: 12px; background: rgba(255,255,255,0.98);
+    border-right: 2.5px solid var(--pet-ink, #322f3d);
+    border-bottom: 2.5px solid var(--pet-ink, #322f3d);
     transform: rotate(45deg);
 }
 
@@ -1903,11 +1903,6 @@ html[data-theme="bauhaus"] .sum-grid b {
 }
 
 /* 宠物:气泡方角 + 3px 墨描边 + 硬投影;聚焦红框;互动粒子换色 */
-html[data-theme="bauhaus"] .pet-bubble {
-    border-radius: 17px; border: 1px solid rgba(17,17,17,0.08); background: rgba(255,255,255,0.96);
-    box-shadow: 0 8px 24px rgba(17,17,17,0.1);
-}
-html[data-theme="bauhaus"] .pet-bubble::after { background: rgba(255,255,255,0.96); border-right: 1px solid rgba(17,17,17,0.08); border-bottom: 1px solid rgba(17,17,17,0.08); bottom: -6px; }
 html[data-theme="bauhaus"] .pet-ask button {
     border-radius: 999px; border: 1px solid rgba(17,17,17,0.12); background: rgba(255,255,255,0.96);
     color: #111; font-weight: 600;
@@ -2499,3 +2494,138 @@ html:not([data-theme="bauhaus"]) .hero-links .arrow-link { border-radius: 999px;
     .brand-screen { padding-bottom: 10vh; }
     html[data-theme="bauhaus"] .brand-title { font-size: clamp(1.9rem, 8.6vw, 2.6rem); }
 }
+
+/* ---- 宠物换装面板(官网 dress 屏的轻量版) ---- */
+.pet-wardrobe {
+    position: absolute; bottom: 30px; z-index: 5;   /* 旁边:底边贴地面线,向上生长 */
+    width: min(92vw, 300px); padding: 14px 16px 16px;
+    background: rgba(251,251,251,.96); border: 1px solid var(--hairline-soft);
+    border-radius: 16px; box-shadow: 0 18px 44px rgba(27,26,30,.16);
+    transform: translateY(8px); opacity: 0; transition: opacity .22s ease, transform .25s cubic-bezier(.2,.8,.2,1);
+    pointer-events: auto;
+}
+.pet-wardrobe.open { opacity: 1; transform: translateY(0); }
+.pet-wardrobe[hidden] { display: none; }
+.pw-head {
+    display: flex; align-items: center; justify-content: space-between;
+    font: 600 14px/1 var(--font-body); color: var(--text); margin-bottom: 10px;
+}
+.pw-close { border: 0; background: none; font-size: 18px; color: var(--text-3); cursor: pointer; padding: 0 2px; }
+.pw-sec { font: 600 10px/1 var(--font-body); letter-spacing: .18em; color: var(--text-3); margin: 10px 0 8px; }
+.pw-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.pw-row button {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 11px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--hairline-soft); background: rgba(255,255,255,.9);
+    font: 500 12px/1 var(--font-body); color: var(--text-2);
+    transition: border-color .2s, color .2s, background-color .2s, transform .2s var(--ease-pop);
+}
+.pw-row button i { width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+.pw-row button:hover { transform: translateY(-1px); color: var(--text); border-color: var(--accent); }
+.pw-row button.on { border-color: var(--accent); color: var(--accent); background: var(--accent-ghost, #f3f1fe); }
+html[data-theme="bauhaus"] .pet-wardrobe { background: rgba(251,251,251,.96); border-color: rgba(26,79,160,.25); }
+html[data-theme="bauhaus"] .pw-row button.on { border-color: #1a4fa0; color: #1a4fa0; background: rgba(26,79,160,.08); }
+
+/* ---- 换装面板:配色预览图卡片 ---- */
+.pw-row.pw-schemes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.pw-row.pw-outfits { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pw-row .pw-card {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    padding: 6px 4px 7px; border-radius: 12px;
+}
+.pw-row .pw-card img { width: 52px; height: 52px; border-radius: 10px; display: block; }
+.pw-row .pw-card span { font-size: 10px; line-height: 1.25; text-align: center; }
+.pw-row .pw-card.on img { box-shadow: 0 0 0 2px var(--accent), 0 4px 12px rgba(27,26,30,.14); }
+
+/* ---- 宠物悬停按钮组(官网同款:指针停在她身上时出现在身侧,走动跟随) ---- */
+/* ---- 宠物悬停按钮组(官网 pet-ui 同款:34px 圆钮 + 2px 线稿色描边,颜色随站点主题,hover 用当前配色的点缀色) ---- */
+.pet-tools { position: fixed; z-index: 92; display: grid; gap: 8px; grid-auto-flow: column; grid-template-rows: repeat(3, auto); pointer-events: none; transition: left .26s ease, top .26s ease; }
+.pet-tools.on { pointer-events: auto; animation: ptBubbleIn .18s cubic-bezier(.3,1.5,.5,1); }
+.pet-tools.leaving { pointer-events: none; }
+.pt-btn { opacity: 0; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--pet-ink, #322f3d); background: var(--bg, #fff); box-shadow: 0 6px 16px rgba(0,0,0,.14); display: grid; place-items: center; cursor: pointer; color: var(--text, #1d1d1f); transition: color .15s, border-color .15s; padding: 0; }
+.pet-tools.on .pt-btn { opacity: 1; }
+.pet-tools.entering .pt-btn { animation: ptIn .34s cubic-bezier(.3,1.5,.5,1) both; animation-delay: calc(var(--i) * 45ms); }
+.pet-tools.leaving .pt-btn { animation: ptOut .16s ease both; }
+.pt-btn { position: relative; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--pet-ink, #322f3d); background: var(--bg, #fff); box-shadow: 0 6px 16px rgba(0,0,0,.14); display: grid; place-items: center; cursor: pointer; color: var(--text, #1d1d1f); transition: color .15s, border-color .15s; padding: 0; }
+.pt-btn:hover { color: var(--pet-accent, #4d6bfe); border-color: var(--pet-accent, #4d6bfe); }
+.pt-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.pt-btn svg .fill-half { fill: currentColor; stroke: none; }
+.pt-btn svg .knob { fill: var(--bg, #fff); stroke: currentColor; stroke-width: 1.6; }
+/* 官网彩蛋:换装按钮悬停时彩虹循环 + 图标摇摆 */
+.pt-btn.pt-like { color: #ec6a9c; }
+.pt-btn.pt-like svg { fill: currentColor; stroke: none; }
+.pt-btn.pt-like:hover { color: #e14b86; border-color: #ec6a9c; }
+.pt-btn.pt-like.burst { animation: ptLikeBeat .45s ease; }
+@keyframes ptLikeBeat { 0%,100%{transform:scale(1)} 30%{transform:scale(1.18)} 55%{transform:scale(.95)} }
+.pt-like-badge { position: absolute; top: -10px; right: -11px; min-width: 20px; border-radius: 999px; background: #fff; color: #3a3632; border: 1px solid rgba(27,26,30,.12); font: 600 10px/1 var(--font-body, system-ui, sans-serif); padding: 3px 5px; box-shadow: 0 2px 6px rgba(0,0,0,.16); }
+.pt-heart { position: absolute; bottom: 8px; color: #ec6a9c; font-size: 13px; pointer-events: none; text-shadow: 0 1px 4px rgba(236,106,156,.4); }
+.pt-btn[data-act="dress"]:hover { animation: ptDressHue 1.6s linear infinite; }
+.pt-btn[data-act="dress"]:hover svg { animation: ptDressWiggle .5s ease-in-out; }
+@keyframes ptDressHue { 0%{color:#FF6B8B; border-color:#FF6B8B} 20%{color:#FF9F43; border-color:#FF9F43} 40%{color:#FFC43D; border-color:#FFC43D} 60%{color:#2FD59B; border-color:#2FD59B} 80%{color:#4CC9F0; border-color:#4CC9F0} 100%{color:#B388FF; border-color:#B388FF} }
+@keyframes ptDressWiggle { 25%{transform:rotate(-12deg)} 75%{transform:rotate(12deg)} }
+@keyframes ptBubbleIn { from { transform: scale(.5); opacity: 0 } }
+
+/* ---- 对话(官网式):头顶打字气泡 + 背侧虚线台词堆 ---- */
+.pet-type { position: fixed; z-index: 96; background: rgba(255,255,255,.98); border: 1px solid rgba(27,26,30,.12); border-radius: 14px; box-shadow: 0 10px 30px rgba(27,26,30,.2); padding: 8px; pointer-events: auto; }
+.pet-type[hidden] { display: none; }
+.pet-type.open, .pet-type { animation: petPop .2s; }
+.pt-wait { font-size: 11px; color: #8a857e; padding: 0 2px 7px; }
+.pt-form { display: flex; gap: 6px; }
+.pt-form input { width: 216px; height: 32px; border: 1px solid rgba(27,26,30,.16); border-radius: 10px; padding: 0 10px; font-size: 13px; color: #2b2723; background: #fff; outline: none; }
+.pt-form input:focus { border-color: var(--accent, #1a4fa0); }
+.pt-form button { height: 32px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--accent, #1a4fa0); color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; }
+/* 用户消息气泡:与她的气泡同款本体 + 虚线描边(官网 heard 同款手法) */
+/* 桌面版 .bubble.heard 规格:同款气泡本体,边框透明、said 底色、阴影收小;悬停浮现点缀色描边 */
+.pet-said {
+    position: fixed; left: 0; top: 0; z-index: 91;
+    width: max-content; max-width: min(260px, calc(100vw - 20px));
+    padding: 10px 14px; border-radius: 18px; background: var(--pet-said-bg, #E6E9E7); color: var(--pet-said-ink, #1F2221);
+    border: 2.5px solid transparent; box-shadow: 0 4px 14px rgba(27,22,38,0.12);
+    font-size: 14.5px; line-height: 1.55; pointer-events: auto; cursor: pointer;
+    transition: opacity .4s ease, border-color .15s;
+}
+.pet-said.older { opacity: .62; }   /* 官网 .older:旧台词变淡 */
+.pet-said.fading { opacity: 0; pointer-events: none; }
+.pet-said:hover { border-color: var(--pet-accent, #4d6bfe); }   /* 官网:悬停亮眼睛色 */
+.pet-said::after { display: none; }   /* 桌面版 .heard:台词气泡无尾巴 */
+@keyframes ptBubbleIn { from { transform: scale(.5); opacity: 0 } }
+
+/* ---- 宠物聊天面板(接用户配置的大语言模型,人设=大肥鱼) ---- */
+.pet-chat { position: fixed; z-index: 96; width: min(380px, calc(100vw - 24px)); height: min(480px, calc(100vh - 140px)); display: flex; flex-direction: column; background: rgba(255,255,255,.98); border: 1px solid rgba(27,26,30,.12); border-radius: 16px; box-shadow: 0 18px 50px rgba(27,26,30,.22); pointer-events: auto; overflow: hidden; }
+.pet-chat[hidden] { display: none; }
+.pet-chat.open { animation: petPop .22s; }
+.pc-head { font: 600 14px/1 var(--font-body, system-ui, sans-serif); color: #2b2723; display: flex; justify-content: space-between; align-items: center; padding: 13px 16px; border-bottom: 1px solid var(--hairline-soft, #ececec); }
+.pc-head-btns button { border: 0; background: none; color: #8a857e; cursor: pointer; font-size: 15px; padding: 2px 5px; }
+.pc-head-btns button:hover { color: #2b2723; }
+.pc-msgs { flex: 1; overflow-y: auto; padding: 14px 14px 8px; display: flex; flex-direction: column; gap: 8px; }
+.pc-msg { max-width: 82%; padding: 8px 12px; border-radius: 13px; font-size: 13px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+.pc-msg.user { align-self: flex-end; background: var(--accent, #1a4fa0); color: #fff; border-bottom-right-radius: 4px; }
+.pc-msg.pet { align-self: flex-start; background: #f1eee9; color: #2b2723; border-bottom-left-radius: 4px; }
+.pc-typing { font-size: 11px; color: #8a857e; padding: 2px 16px 4px; }
+.pc-input { display: flex; gap: 8px; padding: 10px 12px 12px; border-top: 1px solid var(--hairline-soft, #ececec); }
+.pc-input input { flex: 1; height: 36px; border: 1px solid rgba(27,26,30,.16); border-radius: 10px; padding: 0 12px; font-size: 13px; color: #2b2723; background: #fff; outline: none; min-width: 0; }
+.pc-input input:focus { border-color: var(--accent, #1a4fa0); }
+.pc-input button { height: 36px; padding: 0 16px; border: 0; border-radius: 10px; background: var(--accent, #1a4fa0); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
+.pc-input button:hover { filter: brightness(1.08); }
+@keyframes ptBubbleIn { from { transform: scale(.5); opacity: 0 } }
+@keyframes ptIn { from { transform: scale(.4); opacity: 0 } }
+@keyframes ptOut { to { transform: scale(.4); opacity: 0 } }
+
+/* ---- 宠物设置弹窗(暂只有:LLM 提供商 + API Key;只存本机 localStorage) ---- */
+.pet-settings { position: fixed; z-index: 96; width: min(340px, calc(100vw - 24px)); background: rgba(255,255,255,.97); border: 1px solid rgba(27,26,30,.12); border-radius: 16px; box-shadow: 0 18px 50px rgba(27,26,30,.22); padding: 16px 18px 18px; pointer-events: auto; }
+.pet-settings[hidden] { display: none; }
+.pet-settings.open { animation: petPop .22s; }
+.ps-head { font: 600 14px/1 var(--font-body, system-ui, sans-serif); color: #2b2723; display: flex; justify-content: space-between; align-items: center; margin: 0 0 12px; }
+.ps-close { border: 0; background: none; font-size: 18px; line-height: 1; color: #8a857e; cursor: pointer; padding: 2px 4px; }
+.ps-close:hover { color: #2b2723; }
+.ps-row { display: grid; grid-template-columns: 58px 1fr; align-items: center; gap: 10px; margin: 10px 0; }
+.ps-row span { font-size: 12px; color: #6b665f; }
+.ps-row select, .ps-row input { height: 34px; border: 1px solid rgba(27,26,30,.16); border-radius: 9px; padding: 0 10px; font-size: 13px; color: #2b2723; background: #fff; outline: none; min-width: 0; width: 100%; box-sizing: border-box; }
+.ps-row select:focus, .ps-row input:focus { border-color: var(--accent); }
+.ps-cors { font-size: 11px; line-height: 1.65; color: #a06a12; background: #fdf5e6; border: 1px solid #eedcb4; border-radius: 8px; padding: 7px 9px; margin: 8px 0 2px; }
+.ps-cors[hidden] { display: none; }
+.ps-note { font-size: 11px; line-height: 1.7; color: #8a857e; margin: 10px 0 12px; }
+.ps-save { width: 100%; height: 36px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; transition: filter .15s; }
+.ps-save:hover { filter: brightness(1.08); }
+.ps-save.done { background: #2f9e63; }
+@keyframes petPop { from { transform: scale(.94) translateY(6px); opacity: 0; } }

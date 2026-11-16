@@ -12,8 +12,11 @@
  * 跨页位置用 sessionStorage 接续,翻页时她会从上一页停下的地方继续走。
  */
 import { createPet } from './vendor/kit/body.js';
+window.addEventListener('error', e => { (window.__petErrs = window.__petErrs || []).push(e.message + ' @' + e.lineno); });
+window.addEventListener('unhandledrejection', e => { (window.__petErrs = window.__petErrs || []).push('REJ: ' + ((e.reason && e.reason.message) || e.reason)); });
 
 import { createWhaleFigure } from './vendor/whale/figure.js';
+import { createVoice, textSteps, STEP_MS } from './voice.js';
 
 /* ---------- 资源接续缓存(IndexedDB) ----------
    跨页过渡结束的瞬间,新页引擎还要重新拉模型与贴图、建 WebGL 纹理,
@@ -22,63 +25,58 @@ import { createWhaleFigure } from './vendor/whale/figure.js';
 const PET_ASSETS_V = 1;
 const petMem = new Map();
 const petIDB = {
-  open: () => new Promise(res => { try { const q = indexedDB.open('koda-pet-assets', 1);
-      q.onupgradeneeded = () => { const db = q.result; if (!db.objectStoreNames.contains('res')) db.createObjectStore('res'); };
-      q.onsuccess = () => res(q.result); q.onerror = () => res(null); } catch { res(null); } }),
-  all: () => new Promise(res => { petIDB.open().then(db => { if (!db) return res(null);
-      const os = db.transaction('res').objectStore('res');
-      const gk = os.getAllKeys(), gv = os.getAll(); let k = null, v = null, n = 0;
-      gk.onsuccess = () => { k = gk.result; if (++n === 2) res([k, v]); };
-      gv.onsuccess = () => { v = gv.result; if (++n === 2) res([k, v]); };
-      gk.onerror = gv.onerror = () => res(null); }).catch(() => res(null)); }),
-  put: (url, blob) => new Promise(res => { petIDB.open().then(db => { if (!db) return res();
-      const tx = db.transaction('res', 'readwrite');
-      tx.objectStore('res').put(blob, url);
-      tx.objectStore('res').put(new Blob([String(PET_ASSETS_V)]), '<<ver>>');
-      tx.oncomplete = () => res(); tx.onerror = () => res(); }).catch(() => res()); }),
+  _p: null,   // 复用同一个连接(原来每次都重开,几十个请求并发时把 IDB 堵死)
+  /* 打开带超时保险:个别时候 open 的回调一个都不来(存储忙/被挤),不能让整条加载链陪葬——
+     超时就当没有 IDB(回落 HTTP),并清掉记忆化的坏连接 promise,下次重试 */
+  open() { return (this._p && !this._p.__dead) ? this._p : (this._p = (() => { let done = false;
+      const p = new Promise(res => { try { const q = indexedDB.open('koda-pet-assets', 1);
+          q.onupgradeneeded = () => { const db = q.result; if (!db.objectStoreNames.contains('res')) db.createObjectStore('res'); };
+          q.onsuccess = () => { if (!done) { done = true; res(q.result); } };
+          q.onerror = () => { if (!done) { done = true; p.__dead = true; res(null); } };
+          q.onblocked = () => { if (!done) { done = true; p.__dead = true; res(null); } };
+          setTimeout(() => { if (!done) { done = true; p.__dead = true; res(null); } }, 600);
+        } catch { done = true; p.__dead = true; res(null); } });
+      return p; })()); },
+  /* 按 key 取一条(原来每次 all() 全库读回,400+ 个 blob 把并发请求全部堵住,换装加载分钟级无响应) */
+  get: url => petIDB.open().then(db => !db ? null : new Promise(res => {
+      try { let done = false; const fin = v => { if (!done) { done = true; res(v || null); } };
+        const q = db.transaction('res').objectStore('res').get(url);
+        q.onsuccess = () => fin(q.result || null); q.onerror = () => fin(null);
+        setTimeout(() => fin(null), 600);   // 单条读卡住也放行,别堵加载链
+      } catch { res(null); } })),
+  all: () => petIDB.open().then(db => !db ? null : new Promise(res => {
+      try { let done = false; const fin = v => { if (!done) { done = true; res(v); } };
+        const os = db.transaction('res').objectStore('res');
+        const gk = os.getAllKeys(), gv = os.getAll(); let k = null, v = null, n = 0;
+        gk.onsuccess = () => { k = gk.result; if (++n === 2) fin([k, v]); };
+        gv.onsuccess = () => { v = gv.result; if (++n === 2) fin([k, v]); };
+        gk.onerror = gv.onerror = () => fin(null);
+        setTimeout(() => fin(null), 1500);   // 预热读卡住就放弃这次预热
+      } catch { res(null); } })),
+  put: (url, blob) => petIDB.open().then(db => { if (!db) return;
+      try { const tx = db.transaction('res', 'readwrite');
+        tx.objectStore('res').put(blob, url);
+        tx.objectStore('res').put(new Blob([String(PET_ASSETS_V)]), '<<ver>>');
+        tx.oncomplete = () => {}; tx.onerror = () => {}; } catch { /* 存不进就算了,内存里还有 */ } }),
 };
-const isPetAsset = u => { try { return /\/pet\/vendor\//.test(new URL(u, location.href).href); } catch { return false; } };
+const isPetAsset = u => { try { return /\/pet\/vendor\//.test(new URL(u, location.href).href) } catch { return false; } };
 const rawFetch = window.fetch.bind(window);
 window.fetch = (input, init) => {
   const url = typeof input === 'string' ? input : input.url;
   if (!isPetAsset(url)) return rawFetch(input, init);
   if (petMem.has(url)) return Promise.resolve(new Response(petMem.get(url).slice(0)));
-  return petIDB.all().then(([keys, vals]) => {
-    if (keys) { const i = keys.indexOf(url);
-      if (i !== -1) { petMem.set(url, vals[i]); return new Response(vals[i].slice(0)); } }
+  return petIDB.get(url).then(hit => {
+    if (hit) { petMem.set(url, hit); return new Response(hit.slice(0)); }
     return rawFetch(input, init).then(r => { if (r.ok) r.clone().blob()
       .then(b => { petMem.set(url, b); petIDB.put(url, b); }).catch(() => {});
       return r; });
   });
 };
-/* 贴图走 new Image().src(figure.js 内部),同样接缓存:命中直接给 blob: 地址,零网络 */
-const NativeImage = window.Image;
-const nativeSrc = Object.getOwnPropertyDescriptor(NativeImage.prototype, 'src');
-window.Image = function () {
-  const im = new NativeImage();
-  let real = '';
-  Object.defineProperty(im, 'src', {
-    get() { return real; },
-    set(v) {
-      real = v;
-      try {
-        const url = new URL(v, location.href).href;
-        if (!isPetAsset(url)) { nativeSrc.set.call(im, v); return; }
-        const hit = petMem.get(url);
-        if (hit) { nativeSrc.set.call(im, URL.createObjectURL(hit)); return; }
-        petIDB.all().then(([keys, vals]) => {
-          if (keys) { const i = keys.indexOf(url);
-            if (i !== -1) { petMem.set(url, vals[i]); nativeSrc.set.call(im, URL.createObjectURL(vals[i])); return; } }
-          nativeSrc.set.call(im, v);
-          rawFetch(url).then(r => r.ok ? r.blob() : null)
-            .then(b => { if (b) { petMem.set(url, b); petIDB.put(url, b); } }).catch(() => {});
-        }).catch(() => nativeSrc.set.call(im, v));
-      } catch { nativeSrc.set.call(im, v); }
-    },
-    configurable: true,
-  });
-  return im;
-};
+/* 贴图走 new Image().src(figure.js 内部),同样接缓存:命中直接给 blob: 地址,零网络;
+   未命中立刻放行原生加载(续访时预热已把 IDB 装进内存,不会走到这),后台补缓存,绝不让她等 IDB */
+/* 贴图走原生 new Image().src(HTTP),与官网完全一致——不再拦 Image 喂 blob 地址:
+   个别显卡驱动对「blob 图解码后上传」有兼容问题(整套部件传成纯蓝色块),
+   官网原生路径没有这个毛病。缓存保留在 fetch 路径(model.json 等),HTTP 缓存负责贴图提速 */
 // 续访预热:把 IDB 里的资源提前读进内存(版本不符即弃用,走首次加载路径重建)
 petIDB.all().then(([keys, vals]) => { if (!keys) return;
   const vi = keys.indexOf('<<ver>>');
@@ -157,12 +155,61 @@ const fit = () => {
 };
 if (stage) fit();
 
+const TRANSPARENT = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+/* 官网换装系统:贴图兜底加载器——非 deepseek 配色缺 skirt_shadow 等个别贴图(上游如此),
+   404 时回退到 deepseek 的同名贴图;连兜底都没有就给透明像素,绝不让整套配色加载失败 */
+const petImgLoad = url => new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = bad; im.src = url; });
+/* decode():img.onload 只代表字节到位,像素可能还没解完;引擎紧接着 texImage2D 上传,
+   个别驱动会把没解完的图传成显存垃圾(整只纯蓝色块)。这里等像素解完再交给引擎 */
+const decodeImg = img => {
+  if (!img.decode) return Promise.resolve(img);
+  /* decode() 在个别内嵌 Chromium 上对未入 DOM 的图片永不落定,会把整条加载链陪葬:
+     竞速 1.5s,超时就放行(最坏 texImage2D 传到未解完的像素,好过整只不出现) */
+  return Promise.race([img.decode().catch(() => {}), new Promise(r => setTimeout(r, 1500))]).then(() => img);
+};
+/* 本地服务器/连接偶发卡住时,图片 onload 可能迟迟不来:4 秒没动静就换一个全新请求重试一次 */
+const petImgLoadRetry = url => new Promise((ok, bad) => {
+  const im = new Image();
+  window.__lp = window.__lp || { set: 0, ok: 0, err: 0, to: 0, last: '' };
+  window.__lp.set++; window.__lp.last = url.split('/').slice(-2).join('/');
+  const timer = setTimeout(() => { im.onload = im.onerror = null; window.__lp.to++; bad(); }, 4000);
+  im.onload = () => { clearTimeout(timer); window.__lp.ok++; ok(im); };
+  im.onerror = () => { clearTimeout(timer); window.__lp.err++; bad(); };
+  im.src = url;
+  if (im.complete) window.__lp.cached = (window.__lp.cached || 0) + 1;
+});
+const petLoadImage = u => {
+  const url = String(u);                                 // figure.js 传入的是 URL 对象,先转字符串
+  return petImgLoadRetry(url).then(decodeImg, () => petImgLoadRetry(url).then(decodeImg)).then(img => img, () => {
+    const fb = url.replace(/schemes\/[^/]+\//, '');   // schemes/<id>/tex|x/xx.png → 原版(deepseek)同路径
+    return (/^(tex|feat)\//.test(fb) ? petImgLoadRetry(fb) : petImgLoadRetry(TRANSPARENT)).then(decodeImg)
+      .catch(() => petImgLoadRetry(TRANSPARENT).then(decodeImg));
+  });
+};
+const DRESS_KEY = 'koda.pet.dress';
+/* 按钮 hover 的点缀色跟随当前配色(官网同款:用的就是宠物的眼睛色) */
+const applyAccent = f => { try {
+  if (!f) return;
+  const ac = (f.colors && f.colors.z) || ((f.schemes || []).find(s => (f.scheme || '').startsWith(s.id)) || {}).accent || '#4d6bfe';
+  document.documentElement.style.setProperty('--pet-accent', ac); } catch {} };
+const PET_BASE = new URL('./', import.meta.url);   // 本模块目录:衣柜预览图在项目子页也能正确寻址
+const savedDress = (() => { try { return localStorage.getItem(DRESS_KEY) || 'deepseek'; } catch { return 'deepseek'; } })();
+
+const voice = createVoice({ base: PET_BASE });   // 说话声:动物森友会式音节库(官方 speech 移植)
+/* 音库预热必须在 boot 可调之前就绪:boot 有「续访路径」在模块求值期就执行,声明放后面会踩 TDZ(宠物全灭)。
+   预热也不能在模块期主动跑:个别浏览器不允许那时建 AudioContext,会炸掉整个模块——只由手势/boot 触发 */
+const warmVoice = () => { try { voice.warm(); } catch { /* 个别浏览器不让建音频上下文,手势后再试 */ } };
+addEventListener('pointerdown', warmVoice, { capture: true });
+addEventListener('keydown', warmVoice, { capture: true });
+
 async function boot() {
   if (!stage) return;
+  warmVoice();   // 音库/拼音表提前拉好,别等第一句台词才下载
   const die = () => { stage.remove(); stage = null; };
   let ctl;
   try {
-    const figure = await createWhaleFigure(undefined, { scheme: 'deepseek' });
+    const figure = await createWhaleFigure(undefined, { scheme: savedDress, loadImage: petLoadImage });
+    applyAccent(figure);
     ctl = createPet(
       { petG: stage.querySelector('.pet'), shadowEl: stage.querySelector('.shadow'), fxG: stage.querySelector('.fx') },
       {
@@ -174,7 +221,7 @@ async function boot() {
         onEvent: onPetEvent,                 // 行为反应台词(见下)
       },
     );
-  } catch { die(); return; }   // 贴图拉不下来之类:整个不出现,页面照常
+  } catch (e) { window.__bootErr = (e && e.message) || String(e); die(); return; }   // 贴图拉不下来之类:整个不出现,页面照常
   if (prev && (prev.facing === 1 || prev.facing === -1)) ctl.pet.facing = prev.facing;
   if (!prev) {
     // 首访登场:从屏幕右侧外跑进来(不是从天上掉下来),跑到台中再交给迎宾
@@ -194,8 +241,19 @@ async function boot() {
   addEventListener('pointerdown', e => {
     swallowClick = false;                                  // 新的按下先清掉上一次的吞click状态
     if (e.target.closest && e.target.closest('.pet-ask')) return;   // 问答按钮的点击归按钮自己
-    if (!ctl.pointerDown(pt(e))) return;
+    /* 悬停按钮与设置面板就贴在她身侧,按下点常落进她的命中范围——
+       不排除的话按下会被当成摸她,click 被吞掉,按钮就"按了没反应" */
+    if (e.target.closest && (e.target.closest('.pt-btn') || e.target.closest('.pet-settings') || e.target.closest('.pet-type'))) return;
+    if (typeEl && !typeEl.hidden) closeType();   // 打字气泡:点外即收(官网打字框同款)
+    const hit = !!ctl.pointerDown(pt(e));
+    /* 衣柜开着时:点她身上归双击逻辑(舞台 pointer-events:none,target 是身下元素,
+       不能用 target 判断点没点她,得靠命中测试);点衣柜归衣柜;点其余地方收起 */
+    if (!hit && wardrobe && !wardrobe.hidden && !(e.target.closest && e.target.closest('.pet-wardrobe'))) closeWardrobe();
+    if (!hit && settingsEl && !settingsEl.hidden && !(e.target.closest && e.target.closest('.pet-settings'))) closeSettings();
+    if (!hit) return;
     holding = true;
+    tapMark = { t: e.timeStamp, x: e.clientX, y: e.clientY };   // 戳事件:快速轻点会触发模型回应
+    if (e.pointerType !== 'mouse') toolsUntil = performance.now() + 4000;   // 触屏:点她一下亮出按钮组
     swallowClick = true;                                   // 这次按下产生的 click 归她,不吃页面
     e.preventDefault();                                    // 命中她:压掉原生文字拖选
     document.documentElement.classList.add('pet-grab');    // 双保险:拖拽期间整页禁选
@@ -210,10 +268,21 @@ async function boot() {
   addEventListener('pointermove', e => {
     lastPt = pt(e);
     const cur = ctl.pointerMove(lastPt);
-    if (cur) { document.body.style.cursor = cur; cursorSet = true; }
+    if (cur) { document.body.style.cursor = cur; cursorSet = true; toolsUntil = performance.now() + 800; }
     else if (cursorSet) { document.body.style.cursor = ''; cursorSet = false; }
+    /* 指针移进按钮区:当场就亮出按钮组,不等下一帧——否则同帧的点击会穿过
+       还没拿到 pointer-events:auto 的按钮,变成"按了没反应" */
+    if (toolsEl && !toolsOn && !holding && !panelOpen() && !(ctl.busy && ctl.busy())) {
+      const tr = toolsEl.getBoundingClientRect();
+      const near = lastPt.x >= tr.x - 24 && lastPt.x <= tr.right + 24 && lastPt.y >= tr.y - 24 && lastPt.y <= tr.bottom + 24;
+      if (near && !(bubbleEl.classList.contains('ask') && !bubbleEl.hidden)) {
+        toolsOn = true; showTools(true); placeTools();
+      }
+    }
   }, true);
   const releaseAt = p => {
+    if (tapMark && p.t - tapMark.t < 400 && Math.hypot(p.x - tapMark.x, p.y - tapMark.y) < 14) maybeTouchSay();   // 官网 poke:轻点唤醒模型
+    tapMark = null;
     holding = false;
     document.documentElement.classList.remove('pet-grab');
     ctl.pointerUp(p);
@@ -260,13 +329,20 @@ async function boot() {
     bubbleEl.classList.add('pop');
     bubbleEl.textContent = '';
     await sleep(60);                         // 等一帧,让气泡先按空文本量好尺寸弹出来
+    voice.begin(text);                       // 说话声:按文本请求音节(动物森友会式)
+    let vi = 0;
+    const anchors = opts.anchors || [];
+    let af = 0;
     for (const ch of text) {
-      if (tok !== sayToken) return;          // 被新台词顶掉:气泡已归新主人,不要动它(更不能藏掉问句)
+      if (tok !== sayToken) { voice.stop(); return; }   // 被新台词顶掉:气泡已归新主人,不要动它(更不能藏掉问句)
       bubbleEl.textContent += ch;
       ctl.talk();                            // 口型跟着字走
+      voice.reveal(vi++);                    // 说话声:揭示到这个字,音节按官网时钟念出
+      while (af < anchors.length && anchors[af].at <= vi) queueActs(anchors[af++].actions);   // 官网锚点:打到这个字就做
       placeBubble();
-      await sleep(28);                       // 官网 typeInto 的 26ms/字规格
+      await sleep(STEP_MS * textSteps(ch));  // 官网打字节奏:标点停顿、字母加速(与声音的两只时钟一致)
     }
+    voice.stop();
     // 收尾停留分段检查令牌:切屏取消延迟 ≤100ms(官网所有等待点即时取消的同款语义)
     const holdMs = opts.hold ?? Math.min(5200, 1500 + text.length * 90);
     const holdT0 = performance.now();
@@ -321,7 +397,10 @@ async function boot() {
       safety: ['安全那一节是重点,Koda 特意写的~', '防作弊和内容安全都考虑到了,很细~'],
     },
   };
-  const CHATTER = ['我就在这儿,想聊天就戳戳我~', '页面看完了吗?下面还有哦~', '(小声) 摸摸我的头试试~', '扔我可以,轻点扔…'];
+  const CHATTER = ['我就在这儿,想聊天就戳戳我~', '页面看完了吗?下面还有哦~', '摸摸我的头试试~'];
+  /* 逛到页底时换用这组:「下面还有哦」在最后一屏穿帮 */
+  const CHATTER_BOTTOM = ['我就在这儿,想聊天就戳戳我~', '都看到底啦~', '摸摸我的头试试~'];
+  const chatterPool = () => (scrollY + innerHeight >= document.documentElement.scrollHeight - 120 ? CHATTER_BOTTOM : CHATTER);
   /* 逐项巡讲路线(官网:划到一屏,她走到每一项旁边点亮讲解,再走向下一项)。
      sel + i 定位第 i 个匹配元素;无路线的页面/区块退回单句解说。 */
   const TOURS = {
@@ -885,7 +964,7 @@ async function boot() {
         || bubbleEl.classList.contains('pop') || Math.random() < .5) return;
     ambientFreeAt = performance.now() + 45000;
     if (hostMode && Math.random() < .4) ctl.act('wave');   // 主持模式:偶尔挥手代替闲聊
-    else say(pick(CHATTER), { hold: 2600 });
+    else say(pick(chatterPool()), { hold: 2600 });
   }, 20000);
 
   /* 开屏"字活过来"的时刻(官网的 morph 节拍):已登场的她原地蹦一下呼应 */
@@ -906,7 +985,7 @@ async function boot() {
     featTok++;   // 功能演示也作废
     if (coo) {
       if (!document.documentElement.hasAttribute('data-intro')) hostEntrance();
-    } else say('回到经典白啦,有事叫我~', { hold: 2000 });
+    } else say('这个风格怎么样~', { hold: 2000 });
   });
 
   /* ---------- 帧循环与窗口变化 ----------
@@ -922,13 +1001,60 @@ async function boot() {
     const dead = performance.now() - lastFrameAt > 1500;
     if (dead !== occluded) occluded = dead;   // 只切状态:被遮挡时不再开新口,正在说的话让它说完(官网同款)
   }, 800);
+  /* 衣柜/设置/打字框任一开着,按钮组就折起——不然叠在面板上(官网同款规则) */
+  const panelOpen = () => (wardrobe && !wardrobe.hidden) || (settingsEl && !settingsEl.hidden) || (typeEl && !typeEl.hidden);
   const frame = t => {
     const dt = Math.min(.05, (t - last) / 1000 || 0);
     last = t;
     lastFrameAt = t;
     ctl.step(dt);
     ctl.render();
+    stepActs(t);                           // 官网 stepActs:模型动作按词表秒数逐个上台
     placeBubble();
+    placeWardrobe();
+    /* 悬停按钮组:官网 stepTools 同款逐帧决策——光标在她身上(hitPet)/按钮上时亮出,
+       离开 0.8s 后折起(TOOLS_LINGER);被拎起/甩出/蹲下(busy)与问答气泡挂着时不出现;
+       指针在按钮上时冻结位置(官网:移动的是身体不是控件),离开后滑回身侧 */
+    if (toolsEl) {
+      const tr = toolsEl.getBoundingClientRect();
+      const frozen = overTools || !!(lastPt && lastPt.x >= tr.x - 24 && lastPt.x <= tr.right + 24 && lastPt.y >= tr.y - 24 && lastPt.y <= tr.bottom + 24);
+      const near = frozen || !!(lastPt && ctl.hitPet && ctl.hitPet(lastPt));
+      if (near) toolsUntil = performance.now() + 800;
+      const confirming = bubbleEl.classList.contains('ask') && !bubbleEl.hidden;
+      const show = !holding && performance.now() < toolsUntil && !confirming && !panelOpen() && !(ctl.busy && ctl.busy());
+      if (show !== toolsOn) { toolsOn = show; showTools(show); }
+      if (show && !frozen) placeTools();
+    }
+    /* 用户台词:官网 placeLines 同款——最新在底部(她的气泡上方 8px,没气泡则头顶上方 46px),
+       旧的往上叠、以她气泡/头部为轴水平居中,每条带 ox/oy 相对头部的偏移做缓动跟走(dt*12) */
+    {
+      const pills = saidPills();
+      if (pills.length) {
+        const a = ctl.anchor();
+        const bubbleUp = !bubbleEl.hidden;
+        const bRect = bubbleUp ? bubbleEl.getBoundingClientRect() : null;
+        const cx = bRect ? bRect.left + bRect.width / 2 : a.x;
+        let bottom = bRect ? bRect.top - 14 : a.y - 46;
+        const k = Math.min(1, dt * 12);
+        for (let i = pills.length - 1; i >= 0; i--) {
+          const el = pills[i];
+          el.classList.toggle('older', i !== pills.length - 1);
+          if (!el.classList.contains('fading')) {
+            const bw = el.offsetWidth, bh = el.offsetHeight;
+            const left = Math.max(10, Math.min(cx - bw / 2, Math.max(10, pageW() - bw - 10)));
+            const top = Math.max(8, bottom - bh);
+            const ox0 = el.dataset.ox !== undefined ? parseFloat(el.dataset.ox) : null;
+            const oy0 = el.dataset.oy !== undefined ? parseFloat(el.dataset.oy) : null;
+            const ox = ox0 === null ? left - a.x : ox0 + (left - a.x - ox0) * k;
+            const oy = oy0 === null ? top - a.y : oy0 + (top - a.y - oy0) * k;
+            el.dataset.ox = ox; el.dataset.oy = oy;
+            el.style.left = `${(a.x + ox).toFixed(1)}px`;
+            el.style.top = `${(a.y + oy).toFixed(1)}px`;
+          }
+          bottom = top - 14;
+        }
+      }
+    }
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
@@ -936,10 +1062,491 @@ async function boot() {
   addEventListener('resize', () => { fit(); ctl.resize(); });
   addEventListener('pagehide', () => saveState(ctl.pet.x / bounds().W, ctl.pet.facing));
 
+  /* GPU 上下文被系统重置(省电/驱动复位/显存吃紧)时显存贴图全部丢失,
+     个别驱动恢复瞬间的重传会留下垃圾 → 身体画成纯色块(脸每帧重画所以正常),刷新才能好。
+     兜底:监听恢复事件(webglcontext* 不冒泡,捕获阶段在舞台上接),稍候把当前装扮整套重传,免刷新自愈 */
+  stage.addEventListener('webglcontextrestored', () => {
+    setTimeout(() => { try { ctl.figure.setScheme(ctl.figure.scheme); } catch { /* 失败就等下次换装自然重传 */ } }, 200);
+  }, true);
+
+  /* ---------- 官网换装系统 ----------
+     双击她打开衣柜:8 套配色 × 3 套服装,切换即刻生效,选择存 localStorage。
+     idle 时 figure.preload() 预热全部组合,之后的切换零等待 */
+  let wardrobe = null;
+  const W_SCHEMES = [   // 命名与官网一致(品牌名,model.json 的 brand)
+    { id: 'deepseek', label: 'DeepSeek' }, { id: 'harness', label: 'DeepSeek Harness' },
+    { id: 'chatgpt', label: 'ChatGPT' }, { id: 'claude', label: 'Claude' },
+    { id: 'gemini', label: 'Gemini' }, { id: 'qwen', label: '千问' },
+    { id: 'kimi', label: 'Kimi' }, { id: 'minimax', label: 'MiniMax' },
+  ];
+  const W_OUTFITS = [{ id: 'maid', label: '女仆装' }, { id: 'cape', label: '冬装' }, { id: 'crew', label: '麦香鱼' }];
+  const placeWardrobe = () => {
+    if (!wardrobe || wardrobe.hidden) return;
+    const w = wardrobe.offsetWidth, W = pageW(), x = Math.round(ctl.pet.x);
+    const left = x - 64 - w >= 8 ? x - 64 - w : x + 64;   // 先放左侧(右侧留给悬停按钮组),左边放不下再放右
+    wardrobe.style.left = `${Math.max(8, Math.min(left, W - w - 8))}px`;
+  };
+  const closeWardrobe = () => { if (wardrobe) { wardrobe.hidden = true; wardrobe.classList.remove('open'); } };
+  const openWardrobe = () => {
+    if (!wardrobe) return;
+    wardrobe.hidden = false; wardrobe.classList.add('open');
+    const [s0, o0] = (ctl.figure.scheme || savedDress).split('-');
+    wardrobe.querySelectorAll('[data-dress]').forEach(b => b.classList.toggle('on', b.dataset.outfit ? b.dataset.outfit === o0 : b.dataset.dress === s0));
+    placeWardrobe();
+    say(pick(['要给我换个新造型吗？', '今天想让我穿哪一套？', '这件好看吗？']), { hold: 2400 });
+  };
+  (function buildWardrobe() {
+    wardrobe = document.createElement('div');
+    wardrobe.className = 'pet-wardrobe'; wardrobe.hidden = true;
+    const sw = W_SCHEMES.map(sc =>
+      `<button type="button" class="pw-card" data-dress="${sc.id}" title="${sc.label}"><img src="${new URL('vendor/whale/thumbs/' + sc.id + '.png', PET_BASE).href}" alt="${sc.label}"><span>${sc.label}</span></button>`).join('');
+    const of = W_OUTFITS.map(o => `<button type="button" data-dress="deepseek-${o.id}" data-outfit="${o.id}">${o.label}</button>`).join('');
+    wardrobe.innerHTML = '<div class="pw-head">换装<button type="button" class="pw-close" aria-label="关闭">×</button></div>'
+      + '<div class="pw-sec">配色</div><div class="pw-row pw-schemes">' + sw + '</div>'
+      + '<div class="pw-sec">服装</div><div class="pw-row pw-outfits">' + of + '</div>';
+    wardrobe.querySelector('.pw-close').addEventListener('click', closeWardrobe);
+    wardrobe.querySelectorAll('[data-dress]').forEach(btn => btn.addEventListener('click', () => {
+      const [curScheme, curOutfit] = (ctl.figure.scheme || savedDress).split('-');
+      /* 配色按钮保留当前服装;服装按钮保留当前配色——两个维度互不重置 */
+      const id = btn.dataset.outfit ? `${curScheme}-${btn.dataset.outfit}` : `${btn.dataset.dress}-${curOutfit}`;
+      /* 官网同款:换配色 0.4s 交叉渐变(引擎 @mix 双贴图混合);换服装是换骨架,保持硬切 */
+      ctl.figure.setScheme(id, btn.dataset.outfit ? undefined : { fade: .4 });
+      applyAccent(ctl.figure);
+      try { localStorage.setItem(DRESS_KEY, id); } catch {}
+      const [curS, curO] = (ctl.figure.scheme || savedDress).split('-');
+    wardrobe.querySelectorAll('[data-dress]').forEach(b => b.classList.toggle('on',
+      b.dataset.outfit ? b.dataset.outfit === curO : b.dataset.dress === curS));
+    }));
+    stage.appendChild(wardrobe);
+  })();
+  /* 双击开衣柜已移除:与「轻点触发模型回应」冲突;换装统一走按钮组的「换装」 */
+  const toggleWardrobe = () => { if (wardrobe.hidden) openWardrobe(); else closeWardrobe(); };
+  addEventListener('keydown', e => { if (e.key === 'Escape') { closeWardrobe(); closeSettings(); closeType(); } });
+
+  /* ---------- 悬停按钮组(官网同款):鼠标停在她身上时出现在身侧,走动跟随 ----------
+     换装(开衣柜) / 切换风格(站点双主题,走导航按钮的既有换肤路径) / 设置(LLM 提供商与 API Key)。
+     指针离开 0.9s 收起;拖拽与衣柜开着时不出现;触屏点她一下显示 4s */
+  let toolsEl = null, settingsEl = null, typeEl = null, saidWrap = null, overTools = false, toolsUntil = 0, toolsOn = false;
+  let tapMark = null, touchCoolUntil = 0;   // 戳事件:轻点检测与模型回应冷却
+  let openSettings = () => {}, openChat = () => {};
+  function closeSettings() { if (settingsEl) { settingsEl.hidden = true; settingsEl.classList.remove('open'); } }
+  function closeType() { if (typeEl) typeEl.hidden = true; }
+  function fadeSaid(el) { if (!el || el.classList.contains('fading')) return; el.classList.remove('entering'); el.classList.add('fading'); setTimeout(() => el.remove(), 450); }
+  const placeTools = () => {
+    const a = ctl.anchor(), w = toolsEl.offsetWidth, h = toolsEl.offsetHeight, b = bounds();
+    const top = Math.round(Math.max(80, Math.min((a.y + b.floorY) / 2 - h / 2, b.floorY - h - 10)));
+    const x = Math.round(ctl.pet.x);
+    const left = x + 58 + w <= b.W - 8 ? x + 58 : x - 58 - w;   // 先放右侧,放不下放左侧
+    toolsEl.style.left = `${Math.max(8, Math.min(left, b.W - w - 8))}px`;
+    toolsEl.style.top = `${top}px`;
+  };
+  /* 官网 popIn/popOut:entering 逐个弹入(0.6s 收尾),leaving 0.16s 折回,期间不接收点击 */
+  const toolsAnim = { enter: 0, leave: 0 };
+  const showTools = on => {
+    if (on) {
+      if (toolsEl.classList.contains('leaving')) { clearTimeout(toolsAnim.leave); toolsEl.classList.remove('leaving'); }
+      if (toolsEl.classList.contains('on')) return;
+      toolsEl.classList.add('on', 'entering');
+      clearTimeout(toolsAnim.enter);
+      toolsAnim.enter = setTimeout(() => toolsEl.classList.remove('entering'), 600);
+    } else {
+      if (!toolsEl.classList.contains('on') || toolsEl.classList.contains('leaving')) return;
+      clearTimeout(toolsAnim.enter);
+      toolsEl.classList.remove('entering');
+      toolsEl.classList.add('leaving');
+      toolsAnim.leave = setTimeout(() => { toolsEl.classList.remove('on', 'leaving'); }, 160);
+    }
+  };
+  (function buildTools() {
+    toolsEl = document.createElement('div');
+    toolsEl.className = 'pet-tools';
+    const I = {   // 线性图标:T恤=换装,悬浮岛同款脸谱=切换风格,滑杆=设置
+      dress: '<svg viewBox="0 0 20 20"><path d="M6.6 2.6 10 4.7l3.4-2.1 4 3.4-2.4 2.2V17H5V8.2L2.6 6z"/></svg>',
+      theme: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="10" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="7.6" r="1.1" fill="currentColor" stroke="none"/><circle cx="15.5" cy="10" r="1.1" fill="currentColor" stroke="none"/><path d="M12.2 21a3 3 0 0 0 0-6h-1.4"/></svg>',
+      set: '<svg viewBox="0 0 20 20"><path d="M3 6h14M3 10h14M3 14h14"/><circle class="knob" cx="7" cy="6" r="2"/><circle class="knob" cx="13" cy="10" r="2"/><circle class="knob" cx="6" cy="14" r="2"/></svg>',
+      dance: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-7 4 14 2-7h6"/></svg>',
+      chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4.5h12a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3h-6l-4.5 3.5v-3.5H6a3 3 0 0 1-3-3v-7a3 3 0 0 1 3-3z"/></svg>',
+      like: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 20.3s-7.2-4.6-9.2-9.1a5.1 5.1 0 0 1 9.2-4.3 5.1 5.1 0 0 1 9.2 4.3c-2 4.5-9.2 9.1-9.2 9.1z"/></svg>',
+    };
+    toolsEl.innerHTML = '<button type="button" class="pt-btn" data-act="dress" aria-label="换装" title="换装">' + I.dress + '</button>'
+      + '<button type="button" class="pt-btn" data-act="theme" aria-label="切换风格" title="切换风格">' + I.theme + '</button>'
+      + '<button type="button" class="pt-btn" data-act="settings" aria-label="设置" title="设置">' + I.set + '</button>'
+      + '<button type="button" class="pt-btn" data-act="dance" aria-label="跳个舞" title="跳个舞">' + I.dance + '</button>'
+      + '<button type="button" class="pt-btn" data-act="chat" aria-label="聊聊天" title="聊聊天">' + I.chat + '</button>'
+      + '<button type="button" class="pt-btn pt-like" data-act="like" aria-label="点个赞" title="点个赞"><span class="pt-like-badge">0</span>' + I.like + '</button>';
+    toolsEl.addEventListener('pointerenter', () => { overTools = true; });
+    toolsEl.addEventListener('pointerleave', () => { overTools = false; });
+    toolsEl.addEventListener('click', e => {
+      const btn = e.target.closest('.pt-btn');
+      if (!btn) return;
+      const act = btn.dataset.act;
+      if (act === 'dress') toggleWardrobe();
+      else if (act === 'theme') {
+        const st = document.getElementById('styleToggle');
+        if (st) st.click();   // 走站点自己的换肤路径:localStorage 记忆/开屏/广播事件全一致
+        else {                // 兜底:没有换肤按钮的页面手动切
+          const next = document.documentElement.dataset.theme === 'bauhaus';
+          if (next) delete document.documentElement.dataset.theme;
+          else document.documentElement.dataset.theme = 'bauhaus';
+          try { localStorage.setItem('koda.style', next ? 'apple' : 'bauhaus'); } catch {}
+        }
+      } else if (act === 'settings') { if (settingsEl && !settingsEl.hidden) closeSettings(); else openSettings(); }
+      else if (act === 'dance') {
+        ctl.act('dance');
+        say(pick(['看我跳一个~', '数据不说谎，舞步也不说谎~']), { hold: 2200 });
+      }
+      else if (act === 'chat') { if (typeEl && !typeEl.hidden) closeType(); else openChat(); }
+      else if (act === 'like') likeOnce(btn);
+    });
+    [...toolsEl.children].forEach((b, i) => b.style.setProperty('--i', String(i)));   // 官网 stagger:逐个弹出
+    /* 挂 body 不挂舞台:舞台带着 WebGL 画布,合成层里画 svg 偶发出碎块伪影;按钮组是瞬态 UI,不需要跨页接续 */
+    document.body.appendChild(toolsEl);
+  })();
+
+  /* ---------- 设置:大语言模型提供商与 API Key(暂时只有这项;只存本机 localStorage) ---------- */
+  const LLM_KEY = 'koda.pet.llm';
+  const LLM_PROVIDERS = [
+    { id: 'deepseek', label: 'DeepSeek', url: 'https://api.deepseek.com', model: 'deepseek-flash' },
+    { id: 'openai', label: 'OpenAI', url: 'https://api.openai.com/v1', model: 'gpt-6-luna'  },
+    { id: 'anthropic', label: 'Anthropic', url: 'https://api.anthropic.com', model: 'claude-haiku-5-5'  },
+    { id: 'gemini', label: 'Google Gemini', url: 'https://generativelanguage.googleapis.com', model: 'gemini-3.5-flash-lite'  },
+    { id: 'qwen', label: '通义千问', url: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen3.8-flash'  },
+    { id: 'kimi', label: 'Kimi', url: 'https://api.moonshot.cn/v1', model: 'kimi-k3'  },
+    { id: 'minimax', label: 'MiniMax', url: 'https://api.minimax.chat/v1', model: 'MiniMax-M3'  },
+    { id: 'zhipu', label: '智谱 GLM', url: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash', cors: false },
+    { id: 'custom', label: '自定义', url: '' },
+  ];
+  (function buildSettings() {
+    settingsEl = document.createElement('div');
+    settingsEl.className = 'pet-settings';
+    settingsEl.hidden = true;
+    settingsEl.innerHTML = '<div class="ps-head">设置<button type="button" class="ps-close" aria-label="关闭">×</button></div>'
+      + '<label class="ps-row"><span>提供商</span><select class="ps-provider">'
+      + LLM_PROVIDERS.map(p => `<option value="${p.id}">${p.label}</option>`).join('')
+      + '</select></label>'
+      + '<label class="ps-row"><span>API Key</span><input class="ps-key" type="password" autocomplete="off" placeholder="sk-…" /></label>'
+      + '<label class="ps-row"><span>接口地址</span><input class="ps-url" type="text" autocomplete="off" placeholder="留空用默认地址" /></label>'
+      + '<label class="ps-row"><span>模型</span><input class="ps-model" type="text" autocomplete="off" placeholder="留空用默认模型" /></label>'
+      + '<p class="ps-cors" hidden>⚠ 智谱的服务器不允许浏览器直连（跨域限制）：在「接口地址」填一个你的中转地址即可（如 Cloudflare Worker 反代），或改用 DeepSeek 等支持直连的提供商。</p>'
+      + '<p class="ps-note">只保存在这台设备的浏览器里(localStorage),不会上传到任何服务器;之后接入对话功能时直接使用。</p>'
+      + '<button type="button" class="ps-save">保存</button>';
+    document.body.appendChild(settingsEl);
+    const $ = s => settingsEl.querySelector(s);
+    const syncUrlHint = () => {
+      const p = LLM_PROVIDERS.find(x => x.id === $('.ps-provider').value);
+      $('.ps-url').placeholder = p && p.url ? `默认 ${p.url}` : 'https://…';
+      $('.ps-model').placeholder = p && p.model ? `默认 ${p.model}` : '模型名…';
+      const note = $('.ps-cors');
+      if (note) note.hidden = !(p && p.cors === false);
+    };
+    $('.ps-provider').addEventListener('change', syncUrlHint);
+    $('.ps-close').addEventListener('click', closeSettings);
+    $('.ps-save').addEventListener('click', () => {
+      const p = LLM_PROVIDERS.find(x => x.id === $('.ps-provider').value) || LLM_PROVIDERS[0];
+      try { localStorage.setItem(LLM_KEY, JSON.stringify({ provider: p.id, apiKey: $('.ps-key').value.trim(), baseUrl: $('.ps-url').value.trim(), model: $('.ps-model').value.trim() })); } catch {}
+      const save = $('.ps-save');
+      save.textContent = '已保存 ✓'; save.classList.add('done');
+      setTimeout(() => { save.textContent = '保存'; save.classList.remove('done'); }, 1600);
+      say(pick(['记住啦，谢谢投喂~', '好，钥匙收到啦~']), { hold: 1800 });
+    });
+    openSettings = () => {
+      let saved = {};
+      try { saved = JSON.parse(localStorage.getItem(LLM_KEY) || '{}'); } catch {}
+      $('.ps-provider').value = LLM_PROVIDERS.some(p => p.id === saved.provider) ? saved.provider : 'deepseek';
+      $('.ps-key').value = saved.apiKey || '';
+      $('.ps-url').value = saved.baseUrl || '';
+      $('.ps-model').value = saved.model || '';
+      syncUrlHint();
+      settingsEl.hidden = false; settingsEl.classList.add('open');
+      const r = settingsEl.getBoundingClientRect();
+      settingsEl.style.left = `${Math.max(10, Math.round((pageW() - r.width) / 2))}px`;
+      settingsEl.style.top = `${Math.max(70, Math.round((innerHeight - r.height) / 2))}px`;
+    };
+  })();
+
+  /* ---------- 对话(官网式):点「说句话」在她头顶弹打字气泡;
+     用户的话以虚线气泡挂在她的背侧,她的回复用自己的气泡逐字说出 ---------- */
+  const CHAT_PERSONA = '你是 Koda 养的「大肥鱼」，在 Koda 个人网站上的一只鲸鱼娘形象的 AI 伙伴。Koda 是你的主人：2027 届毕业生，方向 LLM 应用开发 / AI 产品，正在找实习；代表作：RAG 智能知识库问答（检索重排 + SSE 流式）、BoomArcade 树莓派街机乐园。你的性格：活泼简洁、偶尔俏皮。规则：每次回复 1~3 句话、口语化、全程用中文；不用 markdown/列表/代码块；不知道就直说；被问 Koda 的信息按上面介绍。\n'
+    + '回复里夹带动作标记,这是你在屏幕上的身体表演(像表情包),两种写法:\n'
+    + '【词】或【词, 词】放在回复最开头:先做这些,再开始说话。\n'
+    + '<词>夹在句子中间:说到那个字时当场做,不换气泡。\n'
+    + '例:【开心】今天也辛苦啦!<眨眼>要不要歇一会儿?\n'
+    + '词表(表情几秒后回到平常的脸;动作做一下就结束):\n'
+    + '表情:开心、眨眼、喜欢、爱心眼、害羞、惊讶、生气、难过、伤心、犯困、思考、得意、嘟嘴、哼、担心、认真、慌张、害怕、期待、星星眼、大哭、疑惑\n'
+    + '动作:点头、摇头、转圈、招手、鞠躬、发抖、扑腾、激动、跳舞、摇摆、小跳、跳起来、转身、张望、坐下、睡觉、晕\n'
+    + '标记要贴合回复的情绪,比如:被夸→【害羞】哪、哪有啦…;被问难题→【认真】让我想想…;听到好消息→【期待, 小跳】真的吗!数据不说谎~。用户戳了你一下时你会收到【touch】事件:用一两句话自然地回应这个互动即可。';
+  const LLM_DEFAULT_URLS = Object.fromEntries(LLM_PROVIDERS.map(p => [p.id, p.url]));
+  const LLM_DEFAULT_MODELS = Object.fromEntries(LLM_PROVIDERS.map(p => [p.id, p.model || '']));
+  /* 跨页记忆:sessionStorage 按标签页存最近 16 条,翻页/刷新不断片(关标签才清) */
+  const CHAT_KEY = 'koda.pet.chat';
+  const loadChat = () => { try { const a = JSON.parse(sessionStorage.getItem(CHAT_KEY) || '[]'); return Array.isArray(a) ? a.slice(-16) : []; } catch { return []; } };
+  const saveChat = () => { try { sessionStorage.setItem(CHAT_KEY, JSON.stringify(chatHistory.slice(-16))); } catch {} };
+  let chatHistory = loadChat();
+  let chatBusy = false;   // 防重复提交:回车+连点发送会触发两次 submit,消息就出双份
+  const saidPills = () => [...document.querySelectorAll('.pet-said')];
+  const addSaid = text => {          // 官网 lines 同构:每条消息一个独立气泡,挂在 body,居中于她头顶向上堆叠
+    const pill = document.createElement('div');
+    pill.className = 'pet-bubble heard said pop pet-said'; pill.textContent = text;
+    pill.addEventListener('click', () => fadeSaid(pill));   // 官网:点一下立即收起
+    document.body.appendChild(pill);
+    const arr = saidPills();
+    arr.forEach((el, i) => el.classList.toggle('older', i !== arr.length - 1));   // 官网 .older:旧台词变淡
+    while (arr.length > 3) fadeSaid(arr[0]);
+    /* 官网:回复期间台词不淡出,回复气泡关掉 1s 后才淡;没被回答 8s 后淡 */
+    const fadeWhenIdle = () => { if (chatBusy) { setTimeout(fadeWhenIdle, 800); return; } fadeSaid(pill); };
+    setTimeout(fadeWhenIdle, 8000);
+  };
+
+  (function buildChatUi() {
+    typeEl = document.createElement('div');
+    typeEl.className = 'pet-type'; typeEl.hidden = true;
+    typeEl.innerHTML = '<div class="pt-wait" hidden>大肥鱼正在吐泡泡，稍等一下下…</div>'
+      + '<div class="pt-form"><input type="text" maxlength="300" placeholder="和她说说…" autocomplete="off" /><button type="button" class="pt-send">发送</button></div>';
+    document.body.appendChild(typeEl);
+    const input = typeEl.querySelector('input');
+    typeEl.addEventListener('keydown', e => { if (e.key === 'Escape') { closeType(); e.stopPropagation(); } });
+    input.addEventListener('keydown', e => e.stopPropagation());
+    /* 不用 form:站点的全局 click 处理器会取消隐式提交;显式按钮 + Enter 直调 sendChat */
+    const sendChat = async () => {
+      if (chatBusy) return;                  // 上一条还没回完:吞掉重复提交(回车+连点会触发两次)
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+      closeType();
+      chatBusy = true;
+      typeEl.querySelector('.pt-wait').hidden = false;
+      try {
+        addSaid(text);                       // 每条发送的消息都显示(官网同款),没配置也显示
+        const cfg = (() => { try { return JSON.parse(localStorage.getItem(LLM_KEY) || 'null'); } catch { return null; } })();
+        if (!cfg || !cfg.apiKey) {
+          say('我还不知道去哪找大脑——先点设置，填好提供商和 API Key 呀~', { hold: 2600 });
+          openSettings();
+          return;
+        }
+        chatHistory.push({ role: 'user', content: text });
+        saveChat();
+        try { ctl.doWord('thinking'); } catch {}   // 等回复:思考脸(表情词必须走 ctl.do,ctl.act 只认动作)
+        try {
+          const beats = parseBeats((await llmCall(cfg, chatHistory)) || '……');
+          const clean = (await playBeats(beats, 2200)) || '……';   // 逐段演出:动作排队、锚点随打字触发
+          chatHistory.push({ role: 'assistant', content: clean });
+          if (chatHistory.length > 16) chatHistory = chatHistory.slice(-16);
+          saveChat();
+          setTimeout(() => { saidPills().forEach(fadeSaid); }, 1000);   // 回答后 1s 淡出(官网)
+          const performed = beats.some(b => b.actions.length || b.anchors.length);
+          if (!performed) { try { ctl.doWord('happy'); } catch {} }   // 模型没给表情才兜底,别盖掉它选的
+        } catch (err) {
+          say('呜…大脑断线了（' + ((err && err.message) || '未知错误') + '）。检查一下设置里的地址和钥匙~', { hold: 2600 });
+          setTimeout(() => { saidPills().forEach(fadeSaid); }, 1000);
+          try { ctl.doWord('sad'); } catch {}
+        }
+      } finally { chatBusy = false; typeEl.querySelector('.pt-wait').hidden = true; }
+    };
+    typeEl.querySelector('.pt-send').addEventListener('click', sendChat);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); sendChat(); } e.stopPropagation(); });
+    if (chatHistory.length) {   // 跨页接力:新页面把她记住的最后一句挂回身旁,翻页不断片
+      const lastUser = [...chatHistory].reverse().find(m => m.role === 'user');
+      if (lastUser) addSaid(lastUser.content);
+    }
+    openChat = () => {
+      typeEl.hidden = false;
+      const a = ctl.anchor(), w = typeEl.offsetWidth;
+      typeEl.style.left = `${Math.round(Math.max(10, Math.min(a.x - w * .4, pageW() - w - 10)))}px`;
+      typeEl.style.top = `${Math.round(Math.max(70, a.y - typeEl.offsetHeight - 40))}px`;
+      typeEl.querySelector('.pt-wait').hidden = !chatBusy;   // 上一条还在等回复:提示而不是沉默
+      input.focus();
+    };
+  })();
+
+  /* 官网 pet_say 同款标记协议(src/script.ts 移植):
+     【词, 词】阻断——先做完这些再说后面的;<词> 内联——打字打到那个字时做(边说边变脸)。
+     词表=官网鲸鱼 figure.json 全量 37 词(表情几秒后回平常的脸,动作按表排队);未收录标记剥除。 */
+  const ACT_WORDS = { '开心': 'happy', '高兴': 'happy', '眨眼': 'wink', '喜欢': 'love', '爱心': 'love', '爱心眼': 'love',
+    '害羞': 'shy', '惊讶': 'surprised', '吃惊': 'surprised', '生气': 'angry', '难过': 'sad', '伤心': 'sad',
+    '犯困': 'sleepy', '困': 'sleepy', '思考': 'thinking', '想想': 'thinking', '得意': 'smug', '嘚瑟': 'smug',
+    '嘟嘴': 'pout', '哼': 'pout', '担心': 'worried', '着急': 'worried', '认真': 'determined', '坚定': 'determined',
+    '慌张': 'flustered', '窘': 'flustered', '害怕': 'scared', '吓到': 'scared', '期待': 'excited', '星星眼': 'excited',
+    '大哭': 'cry', '哭': 'cry', '疑惑': 'confused', '问号': 'confused', '平静': 'neutral',
+    '站起': 'stand', '站': 'stand', '跳': 'jump', '跳起来': 'jump', '小跳': 'hop', '蹦': 'hop',
+    '张望': 'look', '看看': 'look', '转身': 'turn', '点头': 'nod', '摇头': 'shake', '转圈': 'spin',
+    '坐下': 'sit', '坐': 'sit', '睡觉': 'sleep', '睡': 'sleep', '晕': 'dizzy', '转晕': 'dizzy',
+    '走走': 'walk', '散步': 'walk', '跑': 'run', '跑起来': 'run', '招手': 'wave', '打招呼': 'wave',
+    '鞠躬': 'bow', '发抖': 'shiver', '哆嗦': 'shiver', '扑腾': 'flap', '激动': 'flap', '跳舞': 'dance', '摇摆': 'dance',
+    'happy': 'happy', 'wink': 'wink', 'love': 'love', 'shy': 'shy', 'surprised': 'surprised', 'angry': 'angry',
+    'sad': 'sad', 'sleepy': 'sleepy', 'thinking': 'thinking', 'excited': 'excited', 'determined': 'determined',
+    'cry': 'cry', 'confused': 'confused', 'nod': 'nod', 'shake': 'shake', 'spin': 'spin', 'wave': 'wave',
+    'bow': 'bow', 'dance': 'dance', 'jump': 'jump' };
+  /* 官网 figure.json 的 seconds:动作队列按它逐个间隔(表情播完再接下一个) */
+  const VOCAB_SECONDS = { neutral: .9, happy: .9, wink: .9, love: .9, shy: .9, surprised: .9, angry: .9, sad: .9,
+    sleepy: .9, thinking: .9, smug: .9, pout: .9, worried: .9, determined: .9, flustered: .9, scared: .9,
+    excited: .9, cry: .9, confused: .9, stand: 1.2, jump: 1.2, hop: .9, look: 2.7, turn: .4, nod: .8, shake: .8,
+    spin: .8, sit: .8, sleep: .8, dizzy: 3.2, walk: 12, run: 12, wave: 1.7, bow: 1.7, shiver: 1.9, flap: 1.5, dance: 3.4 };
+
+  /* 回复 → beats(官网 parseScript 同构):【】切段,<...> 挂成锚点(at=字序号,打字时触发) */
+  const parseBeats = reply => {
+    const s = String(reply || '');
+    const idOf = inner => inner.split(/[,，、\s]+/).map(w => ACT_WORDS[w.trim()]).filter(Boolean);
+    const beats = [];
+    let cur = { actions: [], text: '', anchors: [] };
+    let i = 0;
+    while (i < s.length) {
+      const ch = s[i];
+      if (ch === '【') {
+        const end = s.indexOf('】', i + 1);
+        if (end < 0) { cur.text += s.slice(i); break; }
+        if (cur.text.trim() || cur.anchors.length) beats.push(cur);
+        cur = { actions: idOf(s.slice(i + 1, end)), text: '', anchors: [] };
+        i = end + 1;
+        continue;
+      }
+      if (ch === '<' || ch === '＜') {
+        const close = ch === '<' ? '>' : '＞';
+        const end = s.indexOf(close, i + 1);
+        const inner = end < 0 ? '' : s.slice(i + 1, end);
+        if (end < 0 || inner.length > 32 || /\n/.test(inner)) { cur.text += ch; i++; continue; }
+        const acts2 = idOf(inner);
+        if (acts2.length) cur.anchors.push({ at: cur.text.length, actions: acts2 });
+        i = end + 1;
+        continue;
+      }
+      cur.text += ch; i++;
+    }
+    beats.push(cur);
+    /* 兼容:模型仍会把开头写成 [词]/(词)/*词*,剥掉当作动作 */
+    const head = /^(?:\[|\(|（|\*)\s*([^\]\)）*]{1,8})\s*(?:\]|\)|）|\*)/;
+    let m;
+    while ((m = beats[0].text.match(head)) && ACT_WORDS[m[1].trim()]) {
+      beats[0].actions.push(ACT_WORDS[m[1].trim()]);
+      beats[0].text = beats[0].text.slice(m[0].length).trim();
+    }
+    return beats.filter(b => b.text.trim() || b.actions.length || b.anchors.length);
+  };
+
+  /* 官网 stepActs 同款动作队列:逐个做,每个按词表 seconds 间隔;做的时候闲逛闭嘴(holdRoam) */
+  const actQ = [];
+  let actQUntil = 0;
+  const queueActs = ids => {
+    if (!ids?.length) return;
+    actQ.push(...ids);
+    try { ctl.holdRoam(8); } catch { /* 控制器还没就绪 */ }
+  };
+  const stepActs = now => {
+    if (now < actQUntil || !actQ.length) return;
+    if (ctl.busy && ctl.busy()) return;   // 拖拽/空中/下蹲时不抢戏
+    const a = actQ.shift();
+    try { ctl.doWord(a); } catch { /* 词表外 */ }
+    actQUntil = now + (VOCAB_SECONDS[a] ?? 1) * 1000;
+  };
+  /* 回复(可能多段)→ 逐段演出;返回干净的正文(进对话历史) */
+  const playBeats = async (beats, lastHold) => {
+    let full = '';
+    for (let i = 0; i < beats.length; i++) {
+      const b = beats[i];
+      queueActs(b.actions);
+      if (b.text) {
+        full += (full ? ' ' : '') + b.text;
+        await say(b.text, { hold: i === beats.length - 1 ? lastHold : 900, anchors: b.anchors });
+      }
+    }
+    return full;
+  };
+
+  /* OpenAI 兼容 / Anthropic / Gemini 三种形状,按提供商分发 */
+  const fetchT = (url, opts, ms = 30000) => { const c = new AbortController();
+    const timer = setTimeout(() => c.abort(), ms);
+    return fetch(url, { ...opts, signal: c.signal }).finally(() => clearTimeout(timer)); };
+  async function llmCall(cfg, history) {
+    const sys = CHAT_PERSONA;
+    const base = (cfg.baseUrl || LLM_DEFAULT_URLS[cfg.provider] || '').replace(/\/+$/, '');
+    const model = cfg.model || LLM_DEFAULT_MODELS[cfg.provider] || '';
+    if (cfg.provider === 'anthropic') {
+      const r = await fetchT(base + '/v1/messages', { method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': cfg.apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model, max_tokens: 400, system: sys, messages: history }) });
+      if (!r.ok) { const t = await r.text().catch(() => ''); throw new Error('HTTP ' + r.status + (t ? '：' + t.slice(0, 90) : '')); }
+      const j = await r.json();
+      return (j.content || []).map(c => c.text || '').join('');
+    }
+    if (cfg.provider === 'gemini') {
+      const r = await fetchT(`${base}/v1beta/models/${model}:generateContent?key=${encodeURIComponent(cfg.apiKey)}`, { method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ system_instruction: { parts: [{ text: sys }] },
+          contents: history.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })) }) });
+      if (!r.ok) { const t = await r.text().catch(() => ''); throw new Error('HTTP ' + r.status + (t ? '：' + t.slice(0, 90) : '')); }
+      const j = await r.json();
+      return ((j.candidates || [])[0] || { content: { parts: [] } }).content.parts.map(p => p.text || '').join('');
+    }
+    // OpenAI 兼容(deepseek/openai/qwen/kimi/minimax/custom)
+    const r = await fetchT(base + '/chat/completions', { method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + cfg.apiKey },
+      body: JSON.stringify({ model, messages: [{ role: 'system', content: sys }, ...history], max_tokens: 400, temperature: 0.8 }) });
+    if (!r.ok) { const t = await r.text().catch(() => ''); throw new Error('HTTP ' + r.status + (t ? '：' + t.slice(0, 90) : '')); }
+    const j = await r.json().catch(() => { throw new Error('响应不是 JSON'); });
+    return ((j.choices || [])[0] || { message: {} }).message.content || '';
+  }
+
+  /* ---------- 戳事件 → 模型回应(官网 poke 唤醒的网页版):冷却 15s,忙/打字中不触发;
+     触摸闲聊不进对话历史(即兴的),失败就算了(身体反射已经演过) ---------- */
+  let touchBusy = false;
+  const maybeTouchSay = async () => {
+    if (touchBusy || chatBusy || performance.now() < touchCoolUntil) return;
+    if (!typeEl || !typeEl.hidden) return;   // 用户正在打字:别打扰
+    const cfg = (() => { try { return JSON.parse(localStorage.getItem(LLM_KEY) || 'null'); } catch { return null; } })();
+    if (!cfg || !cfg.apiKey) return;         // 没配置:纯本地反射,不引导不打扰
+    touchBusy = true; touchCoolUntil = performance.now() + 15000;
+    try {
+      const hist = chatHistory.slice(-4);
+      const beats = parseBeats((await llmCall(cfg, [...hist, { role: 'user', content: '[touch] 用户刚才戳了你一下，用一两句话回应这个互动' }])) || '');
+      await playBeats(beats, 1800);
+    } catch { /* 触摸闲聊失败就算了 */ }
+    touchBusy = false;
+  };
+
+  /* ---------- 点赞:白底圆钮 + 粉色实心爱心 + 计数徽章(参考 lvyovo-wiki)。
+     纯静态站没有后端:计数先记本机 localStorage;以后挂上自己的计数服务(LIKE_API),
+     填上地址就自动升级成全站共享计数(参考站用的是自建 Cloudflare Worker) ---------- */
+  const LIKE_API = '';   // 例如 'https://你的计数服务/api/like?slug=koda';留空=仅本机计数
+  const LIKE_KEY = 'koda.pet.likes';
+  let likeBusy = false;
+  async function likeOnce(btn) {
+    if (likeBusy) return;
+    likeBusy = true;
+    let count = 0;
+    try { count = (parseInt(localStorage.getItem(LIKE_KEY), 10) || 0) + 1; } catch { count = 1; }
+    if (LIKE_API) {
+      try { const r = await fetch(LIKE_API + '&t=' + Date.now(), { method: 'POST' });
+        if (r.ok) { const j = await r.json().catch(() => null); if (j && typeof j.count === 'number') count = j.count; } } catch {}
+    } else {
+      try { localStorage.setItem(LIKE_KEY, String(count)); } catch {}
+    }
+    const badge = btn.querySelector('.pt-like-badge');
+    if (badge) badge.textContent = count > 999 ? (count / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(count);
+    btn.classList.add('burst');
+    setTimeout(() => btn.classList.remove('burst'), 700);
+    // 爱心迸发:小爱心从按钮四散飘起
+    for (let i = 0; i < 6; i++) {
+      const h = document.createElement('span');
+      h.className = 'pt-heart';
+      h.textContent = '♥';
+      h.style.left = 6 + Math.random() * 22 + 'px';
+      btn.appendChild(h);
+      const dx = (Math.random() - .5) * 46, dy = -(36 + Math.random() * 40);
+      h.animate([{ transform: 'translate(0,0) scale(.6)', opacity: 1 },
+                 { transform: `translate(${dx}px,${dy}px) scale(1.15)`, opacity: 0 }],
+                { duration: 650 + Math.random() * 250, easing: 'cubic-bezier(.2,.7,.3,1)' })
+        .onfinish = () => h.remove();
+    }
+    try { ctl.doWord('love'); } catch {}   // 点赞爱心眼(表情词走 ctl.do)
+    say(pick(['谢谢喜欢~', '收到一颗心，数据不说谎！', '哇，被喜欢啦~']), { hold: 1800 });
+    setTimeout(() => { likeBusy = false; }, 350);
+  }
+  ('requestIdleCallback' in window ? requestIdleCallback : setTimeout)(() => { try { ctl.figure.preload && ctl.figure.preload(); } catch {} });
   /* ?petdebug:控制台里看她的状态、已说过的台词和冷却,调台词节奏用 */
   if (new URLSearchParams(location.search).has('petdebug')) {
     window.__pet = {
       ctl,
+      parseBeats, playBeats, queueActs,
+      get chatBusy() { return chatBusy; },
       get said() { return [...saidOnce]; },
       get freeAt() { return ambientFreeAt; },
       say, ambient,
@@ -963,6 +1570,9 @@ else if (stage) {
     const go = viaIntro => { if (!started) { started = true; introJustPlayed = viaIntro; boot(); } };
     document.addEventListener('koda:intro-alive', () => go(true), { once: true });   // 字"活过来"时她空降登场
     setTimeout(() => go(false), 6500);   // 兜底:开屏没播或事件错过,最多等 6.5 秒
+    // 页面在后台时刷新,动画/定时器全被节流,上面两个都不来,boot 会挂到分钟级——
+    // 切回前台的那一刻直接放行(开屏早播过了,空降或跑入都成立)
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) go(false); }, { once: true });
   } else if (document.readyState === 'complete') idle(boot);
   else addEventListener('load', () => idle(boot), { once: true });
 }
