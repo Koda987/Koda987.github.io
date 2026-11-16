@@ -22,7 +22,7 @@ import { createVoice, textSteps, STEP_MS } from './voice.js';
    跨页过渡结束的瞬间,新页引擎还要重新拉模型与贴图、建 WebGL 纹理,
    舞台这段时间是空的 → 宠物"消失一会儿"才出现。
    把全部 pet 资源存进 IndexedDB,翻页时秒读秒显(不赌 HTTP 缓存与网络) */
-const PET_ASSETS_V = 1;
+const PET_ASSETS_V = 2;
 const petMem = new Map();
 const petIDB = {
   _p: null,   // 复用同一个连接(原来每次都重开,几十个请求并发时把 IDB 堵死)
@@ -40,8 +40,16 @@ const petIDB = {
   /* 按 key 取一条(原来每次 all() 全库读回,400+ 个 blob 把并发请求全部堵住,换装加载分钟级无响应) */
   get: url => petIDB.open().then(db => !db ? null : new Promise(res => {
       try { let done = false; const fin = v => { if (!done) { done = true; res(v || null); } };
-        const q = db.transaction('res').objectStore('res').get(url);
-        q.onsuccess = () => fin(q.result || null); q.onerror = () => fin(null);
+        const os = db.transaction('res').objectStore('res');
+        const q = os.get(url);
+        q.onsuccess = () => { const hit = q.result;
+          if (!hit) return fin(null);
+          /* 版本不符的旧缓存一律当无效——不然资产更新(model.json/贴图换版)后,
+             访客永远拿旧 blob,换装/配色就会出现新旧混杂的诡异故障 */
+          const vq = os.get('<<ver>>');
+          vq.onsuccess = () => fin(String(vq.result) === String(PET_ASSETS_V) ? hit : null);
+          vq.onerror = () => fin(null); };
+        q.onerror = () => fin(null);
         setTimeout(() => fin(null), 600);   // 单条读卡住也放行,别堵加载链
       } catch { res(null); } })),
   all: () => petIDB.open().then(db => !db ? null : new Promise(res => {
