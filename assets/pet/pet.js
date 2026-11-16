@@ -159,13 +159,18 @@ const TRANSPARENT = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAA
 /* 官网换装系统:贴图兜底加载器——非 deepseek 配色缺 skirt_shadow 等个别贴图(上游如此),
    404 时回退到 deepseek 的同名贴图;连兜底都没有就给透明像素,绝不让整套配色加载失败 */
 const petImgLoad = url => new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = bad; im.src = url; });
-/* decode():img.onload 只代表字节到位,像素可能还没解完;引擎紧接着 texImage2D 上传,
-   个别驱动会把没解完的图传成显存垃圾(整只纯蓝色块)。这里等像素解完再交给引擎 */
 const decodeImg = img => {
   if (!img.decode) return Promise.resolve(img);
-  /* decode() 在个别内嵌 Chromium 上对未入 DOM 的图片永不落定,会把整条加载链陪葬:
-     竞速 1.5s,超时就放行(最坏 texImage2D 传到未解完的像素,好过整只不出现) */
-  return Promise.race([img.decode().catch(() => {}), new Promise(r => setTimeout(r, 1500))]).then(() => img);
+  /* decode():img.onload 只代表字节到位,像素可能还没解完;引擎紧接着 texImage2D 上传,
+     没解完的像素会被传成显存垃圾(整只蓝色积木块,线上站 vs 本地的经典差异——远端 53 张
+     贴图并行解码时 decode 排队,本地快到看不出)。decode() 对游离于 DOM 之外的图片还可能
+     极慢甚至永不落定(个别 Chromium):挂进屏外隐藏容器再解,基本秒解;超时只是最后保险 */
+  const holder = decodeImg.d ??= Object.assign(document.createElement('div'),
+    { style: 'position:fixed;left:-9999px;top:0;width:1px;height:1px;overflow:hidden;pointer-events:none' });
+  if (!holder.isConnected) (document.body || document.documentElement).appendChild(holder);
+  holder.appendChild(img);
+  return Promise.race([img.decode().catch(() => {}), new Promise(r => setTimeout(r, 5000))])
+    .then(() => { if (img.parentNode === holder) holder.removeChild(img); return img; });
 };
 /* 本地服务器/连接偶发卡住时,图片 onload 可能迟迟不来:4 秒没动静就换一个全新请求重试一次 */
 const petImgLoadRetry = url => new Promise((ok, bad) => {
@@ -1274,7 +1279,9 @@ async function boot() {
     + '词表(表情几秒后回到平常的脸;动作做一下就结束):\n'
     + '表情:开心、眨眼、喜欢、爱心眼、害羞、惊讶、生气、难过、伤心、犯困、思考、得意、嘟嘴、哼、担心、认真、慌张、害怕、期待、星星眼、大哭、疑惑\n'
     + '动作:点头、摇头、转圈、招手、鞠躬、发抖、扑腾、激动、跳舞、摇摆、小跳、跳起来、转身、张望、坐下、睡觉、晕\n'
-    + '标记要贴合回复的情绪,比如:被夸→【害羞】哪、哪有啦…;被问难题→【认真】让我想想…;听到好消息→【期待, 小跳】真的吗!数据不说谎~。用户戳了你一下时你会收到【touch】事件:用一两句话自然地回应这个互动即可。';
+    + '标记要贴合回复的情绪,比如:被夸→【害羞】哪、哪有啦…;被问难题→【认真】让我想想…;听到好消息→【期待, 小跳】真的吗!数据不说谎~。'
+    + '你还能帮主人操作网页,页面指令也写在【】标记里(导航类放回复最后,执行后页面会切换):打开rag(去看RAG项目复盘)、打开街机(BoomArcade页)、回主页、去项目、去技能、去关于、去顶部、去底部、换风格。'
+    + '比如用户说"帮我打开RAG界面"→【点头, 打开rag】这就带你去~;用户想看技能→【去技能】技能都在这屏~。用户戳了你一下时你会收到【touch】事件:用一两句话自然地回应这个互动即可。';
   const LLM_DEFAULT_URLS = Object.fromEntries(LLM_PROVIDERS.map(p => [p.id, p.url]));
   const LLM_DEFAULT_MODELS = Object.fromEntries(LLM_PROVIDERS.map(p => [p.id, p.model || '']));
   /* 跨页记忆:sessionStorage 按标签页存最近 16 条,翻页/刷新不断片(关标签才清) */
@@ -1372,6 +1379,9 @@ async function boot() {
     '坐下': 'sit', '坐': 'sit', '睡觉': 'sleep', '睡': 'sleep', '晕': 'dizzy', '转晕': 'dizzy',
     '走走': 'walk', '散步': 'walk', '跑': 'run', '跑起来': 'run', '招手': 'wave', '打招呼': 'wave',
     '鞠躬': 'bow', '发抖': 'shiver', '哆嗦': 'shiver', '扑腾': 'flap', '激动': 'flap', '跳舞': 'dance', '摇摆': 'dance',
+    '打开rag': '@rag', '去rag': '@rag', 'rag页': '@rag', '打开街机': '@boom', '去街机': '@boom', '街机页': '@boom',
+    '回主页': '@home', '回首页': '@home', '去项目': '@projects', '去技能': '@skills', '去关于': '@about',
+    '去顶部': '@top', '去底部': '@bottom', '换风格': '@theme',
     'happy': 'happy', 'wink': 'wink', 'love': 'love', 'shy': 'shy', 'surprised': 'surprised', 'angry': 'angry',
     'sad': 'sad', 'sleepy': 'sleepy', 'thinking': 'thinking', 'excited': 'excited', 'determined': 'determined',
     'cry': 'cry', 'confused': 'confused', 'nod': 'nod', 'shake': 'shake', 'spin': 'spin', 'wave': 'wave',
@@ -1430,10 +1440,45 @@ async function boot() {
     actQ.push(...ids);
     try { ctl.holdRoam(8); } catch { /* 控制器还没就绪 */ }
   };
+  /* ---------- 页面指令(@开头的词):她不只是做表情,还能操作网页——滚动到某屏、
+     走到项目卡旁边"亲手"点进去、切换风格。只有白名单动作,模型给不出任意代码 ---------- */
+  const IN_PROJECTS = /\/projects\//.test(location.pathname);
+  const scrollToSec = (...ids) => {
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (el) { scrollTo({ top: Math.max(0, Math.round(el.getBoundingClientRect().top + scrollY - innerHeight * .06)), behavior: 'smooth' }); return; }
+    }
+  };
+  /* 走到项目卡旁,到位后亲手点进去(跨页记忆让她在新页面接着陪你逛) */
+  const openProject = async page => {
+    if (IN_PROJECTS) {   // 已经在项目页里:同名页滚到开头,不同名直接走
+      if (location.pathname.endsWith(page)) { scrollToSec('overview'); return; }
+      location.href = page;
+      return;
+    }
+    const card = document.querySelector(`a[href*="${page}"]`);
+    const b = ctl.bounds;
+    const r = card?.getBoundingClientRect();
+    const target = r ? Math.round(Math.max(b.minX + 60, Math.min(r.x + r.width / 2, b.maxX - 60))) : Math.round(b.W * .62);
+    try { ctl.holdRoam(9); ctl.walkTo(target, true, 'open-' + page); await arrive(target, 3200); } catch { /* 被拎起等:照常点 */ }
+    if (card) card.click(); else location.href = 'projects/' + page;
+  };
+  const PAGE_ACTS = {
+    '@rag': () => openProject('rag.html'),
+    '@boom': () => openProject('boom-arcade.html'),
+    '@home': () => { location.href = (IN_PROJECTS ? '../' : '') + 'index.html'; },
+    '@projects': () => scrollToSec('projects', 'b-projects', 'overview'),
+    '@skills': () => scrollToSec('skills', 'b-about', 'overview'),
+    '@about': () => scrollToSec('about', 'b-about', 'overview'),
+    '@top': () => scrollTo({ top: 0, behavior: 'smooth' }),
+    '@bottom': () => scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' }),
+    '@theme': () => document.getElementById('styleToggle')?.click(),
+  };
   const stepActs = now => {
     if (now < actQUntil || !actQ.length) return;
     if (ctl.busy && ctl.busy()) return;   // 拖拽/空中/下蹲时不抢戏
     const a = actQ.shift();
+    if (PAGE_ACTS[a]) { try { PAGE_ACTS[a](); } catch { /* 页面动作失败不拖累表情 */ } actQUntil = now + 2400; return; }
     try { ctl.doWord(a); } catch { /* 词表外 */ }
     actQUntil = now + (VOCAB_SECONDS[a] ?? 1) * 1000;
   };
