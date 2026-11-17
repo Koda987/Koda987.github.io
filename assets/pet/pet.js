@@ -195,23 +195,28 @@ const petImgLoadRetry = url => new Promise((ok, bad) => {
    "HTMLImageElement 解码时序(排队超时/永不落定)→texImage2D 传未解完像素→蓝色积木块"
    这一整类 bug(线上远端加载时必现,本地快到看不出)。顺带:fetch 走本模块顶部的
    IDB 拦截层,贴图在 IndexedDB 也有了缓存;引擎的 texImage2D/drawImage 都原生收位图 */
+const texProg = { set: 0, ok: 0 };   // 贴图加载计数:boot 的进度气泡用
 const loadBitmap = async url => {
   for (let i = 0; i < 2; i++) {
     try {
+      texProg.set++;
       const c = new AbortController(); const timer = setTimeout(() => c.abort(), 8000);
       const r = await fetch(url, { signal: c.signal }).finally(() => clearTimeout(timer));
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const blob = await r.blob();
       if (!blob.size) throw new Error('空响应');
-      return await createImageBitmap(blob);
-    } catch (e) { if (i === 1) throw e; }   // 失败重试一次(远端偶发断流)
+      const bmp = await createImageBitmap(blob);
+      texProg.ok++;
+      return bmp;
+    } catch (e) { if (i === 1) throw e; }
   }
 };
 const petLoadImage = async u => {
   const url = String(u);                                 // figure.js 传入的是 URL 对象,先转字符串
   try { return await loadBitmap(url); } catch { /* 404/网络:走回退 */ }
-  const fb = url.replace(/schemes\/[^/]+\//, '');        // schemes/<id>/tex|x/xx.png → 原版(deepseek)同路径
-  try { if (/^(tex|feat)\//.test(fb)) return await loadBitmap(new URL('vendor/whale/' + fb, PET_BASE).href); } catch {}
+  /* schemes/<id>/tex|x/xx.png → 原版(deepseek)同路径(配色缺图时的兜底) */
+  const m = url.match(/\/schemes\/[^/]+\/((?:tex|feat)\/.+)$/);
+  try { if (m) return await loadBitmap(new URL('vendor/whale/' + m[1], PET_BASE).href); } catch {}
   try { return await loadBitmap(TRANSPARENT); } catch { /* 连透明位图都不行:退回旧 Image 路径保底 */ }
   return petImgLoadRetry(TRANSPARENT).then(decodeImg);
 };
@@ -235,10 +240,25 @@ async function boot() {
   if (!stage) return;
   warmVoice();   // 音库/拼音表提前拉好,别等第一句台词才下载
   const die = () => { stage.remove(); stage = null; };
+  /* 慢网反馈:贴图 1.5s 还没到齐,就挂一个进度气泡——页面不再像坏了;
+     快网加载 <1.5s,这个气泡根本不会出现。注意 boot 体里 356 行才有 bubbleEl,
+     这里必须用自带元素,提前碰 bubbleEl 会 TDZ(boot 的 catch 会把整个舞台拆掉) */
+  const bootT0 = performance.now();
+  const progEl = document.createElement('div');
+  progEl.className = 'pet-bubble pop';
+  progEl.style.left = `${Math.max(8, Math.round(innerWidth / 2 - 64))}px`;
+  progEl.style.top = `${Math.max(60, Math.round(innerHeight - 150))}px`;
+  progEl.style.setProperty('--tail', '24px');
+  const progTimer = setInterval(() => {
+    if (performance.now() - bootT0 < 1500) return;
+    progEl.textContent = `潜水赶来中… ${texProg.ok}/${Math.max(texProg.set, 1)}`;
+    if (!progEl.isConnected) stage.appendChild(progEl);
+  }, 350);
   let ctl;
   try {
     const figure = await createWhaleFigure(undefined, { scheme: savedDress, loadImage: petLoadImage });
-    applyAccent(figure);
+    clearInterval(progTimer);
+    progEl.remove();
     ctl = createPet(
       { petG: stage.querySelector('.pet'), shadowEl: stage.querySelector('.shadow'), fxG: stage.querySelector('.fx') },
       {
@@ -250,7 +270,7 @@ async function boot() {
         onEvent: onPetEvent,                 // 行为反应台词(见下)
       },
     );
-  } catch (e) { window.__bootErr = (e && e.message) || String(e); die(); return; }   // 贴图拉不下来之类:整个不出现,页面照常
+  } catch (e) { clearInterval(progTimer); progEl.remove(); window.__bootErr = (e && e.message) || String(e); die(); return; }   // 贴图拉不下来之类:整个不出现,页面照常
   if (prev && (prev.facing === 1 || prev.facing === -1)) ctl.pet.facing = prev.facing;
   if (!prev) {
     // 首访登场:从屏幕右侧外跑进来(不是从天上掉下来),跑到台中再交给迎宾
@@ -1641,7 +1661,10 @@ async function boot() {
       if (j && typeof j.value === 'number' && j.value >= (parseInt(badge.textContent, 10) || 0)) { likeKnown = j.value; badge.textContent = likeFmt(j.value); }
     } catch { /* 拿不到就维持本机数 */ }
   }
-  ('requestIdleCallback' in window ? requestIdleCallback : setTimeout)(() => { try { ctl.figure.preload && ctl.figure.preload(); } catch {} });
+  /* 预热已移除:figure.preload() 会一口气拉全部 24 种配色×服装(≈14MB、1272 张贴图)——
+     弱网下它和首屏抢带宽(登场被拖到几十秒),还会在高并发解码下产出坏位图,
+     之后切换配色就渲染成蓝色积木块。现在切换时按需加载(约 2MB/套,经 IDB 缓存,
+     同一套第二次切换瞬时);慢网进度反馈见 boot 里的进度气泡 */
   /* ?petdebug:控制台里看她的状态、已说过的台词和冷却,调台词节奏用 */
   if (new URLSearchParams(location.search).has('petdebug')) {
     window.__pet = {
