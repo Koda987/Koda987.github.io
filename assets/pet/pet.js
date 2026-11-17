@@ -1583,9 +1583,10 @@ async function boot() {
      /hit 自增并返回 {value: n},全站访客共享同一个数;/get 只读不增。
      远端拉取失败(服务挂/被墙/超时)自动退回本机 localStorage——按钮永远有反应。
      想换自建服务(Cloudflare Worker 等):改 LIKE_API 一行,返回 {value} 同形状即可 ---------- */
-  /* 计数端可被 localStorage 临时覆盖(自建 Worker 先测后改):控制台
-     localStorage.setItem('koda.pet.likeApi', 'https://你的.workers.dev') 即时生效,见 like-worker/README.md */
-  const LIKE_API = (() => { try { return localStorage.getItem('koda.pet.likeApi') || 'https://abacus.jasoncameron.dev'; } catch { return 'https://abacus.jasoncameron.dev'; } })();
+  /* 计数端可被 localStorage 临时覆盖(控制台
+     localStorage.setItem('koda.pet.likeApi', 'https://...') 即时生效,见 like-worker/README.md)。
+     默认:自建 Worker(koda.loveelysia.qzz.io,数据在主人自己的 Cloudflare D1 里) */
+  const LIKE_API = (() => { try { return localStorage.getItem('koda.pet.likeApi') || 'https://koda.loveelysia.qzz.io'; } catch { return 'https://koda.loveelysia.qzz.io'; } })();
   const LIKE_NS = 'koda987-site';
   const LIKE_NAME = 'like';
   const LIKE_KEY = 'koda.pet.likes';   // 本机兜底计数
