@@ -2636,3 +2636,9 @@ html[data-theme="bauhaus"] .pw-row button.on { border-color: #1a4fa0; color: #1a
 .pet-wheel-item img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
 .pet-wheel-item span { position: absolute; left: 0; right: 0; bottom: 0; font: 600 9px/1.4 var(--font-body, system-ui, sans-serif); color: #fff; background: rgba(27,26,30,.55); pointer-events: none; }
 .pet-wheel-item.on { border-color: var(--pet-accent, #4d6bfe); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pet-accent, #4d6bfe) 30%, transparent), 0 6px 16px rgba(0,0,0,.14); }
+
+/* 项目详情页(包豪斯风)手机适配:装饰极光层按视口缩放,不再把文档撑出横向滚动 */
+@media (max-width: 760px) {
+    .hero::before { width: min(420px, 96vw); height: 360px; top: -120px; transform: translateX(-50%); animation: none; }
+    .hero::after { width: min(320px, 92vw); height: 320px; bottom: 40px; transform: translateX(-50%); animation: none; }
+}

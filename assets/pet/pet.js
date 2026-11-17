@@ -142,11 +142,14 @@ if (!ready()) {
    --pet-s 留作整体微调旋钮,默认 1 */
 const petScale = () => {
   const s = Number(getComputedStyle(document.documentElement).getPropertyValue('--pet-s'));
+  /* 未定义时 getPropertyValue 给空串,Number('') = 0 且是有限数——会把整个宠物缩到 0
+     (抓取页等不加载 style.css 的页面宠物直接隐形);0/负数一律按 1 处理 */
+  const k = Number.isFinite(s) && s > 0 ? s : 1;
   const big = innerWidth >= 2400 && innerHeight >= 1300 ? 1.35
     : innerWidth >= 1900 && innerHeight >= 1000 ? 1.2
     : innerWidth >= 1600 && innerHeight >= 860 ? 1.1 : 1;
   const small = innerWidth <= 600 ? .72 : 1;   // 手机:宠物缩一号,留出屏幕给内容
-  return (Number.isFinite(s) ? s : 1) * .78 * big * small * (innerHeight < 650 ? .86 : 1);
+  return k * .78 * big * small * (innerHeight < 650 ? .86 : 1);
 };
 const bounds = () => ({
   W: pageW(),
@@ -699,6 +702,16 @@ async function boot() {
         const t = (document.querySelectorAll(it.sel))[it.i || 0];
         if (t) t.classList.add('pet-item-wait');
       });
+      /* 看门狗:待场 6s 还没开讲(返回页恢复滚动位置不触发巡讲 IO 等任何路径),
+         就把内容全部放出来——卡片永远不能停在隐藏态 */
+      setTimeout(() => {
+        if (document.hidden) return;
+        const stillWaiting = items.every(it => {
+          const t = (document.querySelectorAll(it.sel))[it.i || 0];
+          return t && t.classList.contains('pet-item-wait');
+        });
+        if (stillWaiting) revealAllWaits();
+      }, 6000);
     }, { threshold: .05 }).observe(el);
     new IntersectionObserver(es => {
       if (!es.some(e => e.isIntersecting)) return;
@@ -1181,12 +1194,16 @@ async function boot() {
   const closeWheel = () => { clearTimeout(wheelTimer); wheelTimer = 0; if (wheelEl) { wheelEl.remove(); wheelEl = null; } };
   const drawWheel = () => {
     if (!wheelEl) return;
+    const n = wheelEl.children.length;
+    /* 无限循环:每个形象按「到当前选中位的环绕最短距离」落位——转过头自动从另一端接上,
+       可以一直往一个方向滚 */
     [...wheelEl.children].forEach((b, i) => {
-      const d = i - wheelAt, n = Math.abs(d);
-      b.style.transform = `translate(-50%,-50%) translateX(${d * 54}px) scale(${Math.max(.6, 1 - .14 * n)})`;
-      b.style.opacity = String([1, .55, .3, .12][n] ?? 0);
-      b.style.zIndex = String(10 - n);
-      b.style.pointerEvents = n > 3 ? 'none' : '';
+      let d = ((i - wheelAt) % n + n + Math.floor(n / 2)) % n - Math.floor(n / 2);
+      const an = Math.abs(d);
+      b.style.transform = `translate(-50%,-50%) translateX(${d * 54}px) scale(${Math.max(.6, 1 - .14 * an)})`;
+      b.style.opacity = String([1, .55, .3, .12][an] ?? 0);
+      b.style.zIndex = String(10 - an);
+      b.style.pointerEvents = an > 3 ? 'none' : '';
       b.classList.toggle('on', d === 0);
     });
   };
@@ -1196,41 +1213,51 @@ async function boot() {
     wheelEl.style.left = `${Math.max(8, Math.min(Math.round(a.x - w / 2), pageW() - w - 8))}px`;
     wheelEl.style.top = `${Math.max(60, Math.round(a.y - h - 22))}px`;
   };
-  const wearWheel = id => {
+  const wearWheel = look => {
     clearTimeout(wheelTimer); wheelTimer = 0;
-    const [curS, curO] = (ctl.figure.scheme || savedDress).split('-');
-    if (id === curS) return;
-    ctl.figure.setScheme(`${id}-${curO}`, { fade: .4 });   // 换配色保持官网的交叉渐变
+    const cur = ctl.figure.scheme || savedDress;
+    if (look === cur) return;
+    const [nextS, nextO] = look.split('-');
+    const [curS, curO] = cur.split('-');
+    /* 换配色保持官网的交叉渐变;换服装是换骨架,保持硬切 */
+    ctl.figure.setScheme(look, nextO === curO ? { fade: .4 } : undefined);
     applyAccent(ctl.figure);
-    try { localStorage.setItem(DRESS_KEY, `${id}-${curO}`); } catch {}
+    try { localStorage.setItem(DRESS_KEY, look); } catch {}
     if (wardrobe) wardrobe.querySelectorAll('[data-dress]').forEach(b => b.classList.toggle('on',
-      b.dataset.outfit ? b.dataset.outfit === curO : b.dataset.dress === id));
+      b.dataset.outfit ? b.dataset.outfit === nextO : b.dataset.dress === nextS));
   };
   const spinTo = i => {
     if (!wheelEl) return;
-    const n = Math.max(0, Math.min(i, wheelEl.children.length - 1));
-    if (n !== wheelAt) { wheelAt = n; drawWheel(); }
+    /* 无限循环:wheelAt 是滚过的累计游标,不封顶;形象按环绕距离取模落位 */
+    if (i !== wheelAt) { wheelAt = i; drawWheel(); }
     wheelUntil = performance.now() + 8000;
     clearTimeout(wheelTimer);
     wheelTimer = setTimeout(() => {   // 停 300ms 自动穿上(官网同款;点击路径走立即穿)
-      const b = wheelEl && wheelEl.children[wheelAt];
-      if (b) wearWheel(b.dataset.scheme);
+      const n = wheelEl ? wheelEl.children.length : 0;
+      const b = wheelEl && wheelEl.children[((wheelAt % n) + n) % n];
+      if (b) wearWheel(b.dataset.look);
     }, 300);
   };
   const openWheel = () => {
     closeWheel();
-    const [curS] = (ctl.figure.scheme || savedDress).split('-');
+    const cur = ctl.figure.scheme || savedDress;
     wheelEl = document.createElement('div');
     wheelEl.className = 'pet-wheel';
-    W_SCHEMES.forEach(sc => {
+    /* 一排收藏形象 = 全部配色×服装组合(服装分组在前:先看同一套衣服的 8 个配色,再换下一套) */
+    const items = [];
+    W_OUTFITS.forEach(o => W_SCHEMES.forEach(s => items.push({
+      look: `${s.id}-${o.id}`, label: s.label,
+      thumb: new URL(`vendor/whale/thumbs/${s.id}-${o.id}.png`, PET_BASE).href,
+    })));
+    wheelEl.style.width = `${(2 * 3 + 1) * 54}px`;   // 7 个形象的宽度(官网 WHEEL_STEP×(WHEEL_SIDE×2+1))
+    items.forEach(it => {
       const b = document.createElement('button');
-      b.type = 'button'; b.className = 'pet-wheel-item'; b.dataset.scheme = sc.id; b.title = sc.label;
-      b.innerHTML = `<img draggable="false" src="${new URL('vendor/whale/thumbs/' + sc.id + '.png', PET_BASE).href}" alt="${sc.label}"><span>${sc.label}</span>`;
+      b.type = 'button'; b.className = 'pet-wheel-item'; b.dataset.look = it.look; b.title = `${it.label}·${W_OUTFITS.find(o => it.look.endsWith('-' + o.id)).label}`;
+      b.innerHTML = `<img draggable="false" src="${it.thumb}" alt="${it.label}"><span>${it.label}</span>`;
       wheelEl.appendChild(b);
     });
     stage.appendChild(wheelEl);
-    wheelEl.style.width = `${(2 * 3 + 1) * 54}px`;   // 7 个形象的宽度(官网 WHEEL_STEP×(WHEEL_SIDE×2+1))
-    wheelAt = Math.max(0, W_SCHEMES.findIndex(s => s.id === curS));
+    wheelAt = Math.max(0, items.findIndex(it => it.look === cur));
     drawWheel(); placeWheel();
     wheelUntil = performance.now() + 8000;
     say(pick(['头顶这排都是我,挑一个吧~', '拨一拨这排形象,看中哪个点哪个~']), { hold: 1600 });
@@ -1248,8 +1275,13 @@ async function boot() {
       const el = document.elementFromPoint(e.clientX, e.clientY);
       const b = el && el.closest && el.closest('.pet-wheel-item');
       if (!b || !wheelEl.contains(b)) return;
-      wheelAt = [...wheelEl.children].indexOf(b); drawWheel();
-      wearWheel(b.dataset.scheme);
+      /* 点按:把累计游标按最短环绕距离拨到该形象(行不跳),再穿上 */
+      const n = wheelEl.children.length;
+      const cur = ((wheelAt % n) + n) % n;
+      const c = [...wheelEl.children].indexOf(b);
+      wheelAt += ((c - cur) % n + n + Math.floor(n / 2)) % n - Math.floor(n / 2);
+      drawWheel();
+      wearWheel(b.dataset.look);
     });
     wheelEl.addEventListener('pointercancel', () => { wheelAcc = 0; });
   };
