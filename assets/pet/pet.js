@@ -298,6 +298,7 @@ async function boot() {
     /* 衣柜开着时:点她身上归双击逻辑(舞台 pointer-events:none,target 是身下元素,
        不能用 target 判断点没点她,得靠命中测试);点衣柜归衣柜;点其余地方收起 */
     if (!hit && wardrobe && !wardrobe.hidden && !(e.target.closest && e.target.closest('.pet-wardrobe'))) closeWardrobe();
+    if (!hit && wheelEl && !(e.target.closest && (e.target.closest('.pet-wheel') || e.target.closest('.pt-btn[data-act="dress"]')))) closeWheel();
     if (!hit && settingsEl && !settingsEl.hidden && !(e.target.closest && e.target.closest('.pet-settings'))) closeSettings();
     if (!hit) return;
     holding = true;
@@ -1061,6 +1062,7 @@ async function boot() {
     stepActs(t);                           // 官网 stepActs:模型动作按词表秒数逐个上台
     placeBubble();
     placeWardrobe();
+    if (wheelEl) placeWheel();             // 轮盘跟着她的头顶走
     /* 悬停按钮组:官网 stepTools 同款逐帧决策——光标在她身上(hitPet)/按钮上时亮出,
        离开 0.8s 后折起(TOOLS_LINGER);被拎起/甩出/蹲下(busy)与问答气泡挂着时不出现;
        指针在按钮上时冻结位置(官网:移动的是身体不是控件),离开后滑回身侧 */
@@ -1170,7 +1172,98 @@ async function boot() {
   })();
   /* 双击开衣柜已移除:与「轻点触发模型回应」冲突;换装统一走按钮组的「换装」 */
   const toggleWardrobe = () => { if (wardrobe.hidden) openWardrobe(); else closeWardrobe(); };
-  addEventListener('keydown', e => { if (e.key === 'Escape') { closeWardrobe(); closeSettings(); closeType(); } });
+
+  /* ---------- 手机版换装轮盘(官网 look wheel 同款):≤600px 时「换装」不开衣柜面板,
+     而是在她头顶亮出一排收藏形象——滚轮/手指拨动切换,停在某个形象 300ms 自动穿上,
+     点一下立即穿。电脑版(>600px)保持衣柜面板不变 ---------- */
+  const isNarrow = () => innerWidth <= 600;
+  let wheelEl = null, wheelAt = 0, wheelUntil = 0, wheelTimer = 0, wheelAcc = 0, wheelLastX = 0, wheelDrag = 0;
+  const closeWheel = () => { clearTimeout(wheelTimer); wheelTimer = 0; if (wheelEl) { wheelEl.remove(); wheelEl = null; } };
+  const drawWheel = () => {
+    if (!wheelEl) return;
+    [...wheelEl.children].forEach((b, i) => {
+      const d = i - wheelAt, n = Math.abs(d);
+      b.style.transform = `translate(-50%,-50%) translateX(${d * 54}px) scale(${Math.max(.6, 1 - .14 * n)})`;
+      b.style.opacity = String([1, .55, .3, .12][n] ?? 0);
+      b.style.zIndex = String(10 - n);
+      b.style.pointerEvents = n > 3 ? 'none' : '';
+      b.classList.toggle('on', d === 0);
+    });
+  };
+  const placeWheel = () => {
+    if (!wheelEl) return;
+    const a = ctl.anchor(), w = wheelEl.offsetWidth, h = wheelEl.offsetHeight;
+    wheelEl.style.left = `${Math.max(8, Math.min(Math.round(a.x - w / 2), pageW() - w - 8))}px`;
+    wheelEl.style.top = `${Math.max(60, Math.round(a.y - h - 22))}px`;
+  };
+  const wearWheel = id => {
+    clearTimeout(wheelTimer); wheelTimer = 0;
+    const [curS, curO] = (ctl.figure.scheme || savedDress).split('-');
+    if (id === curS) return;
+    ctl.figure.setScheme(`${id}-${curO}`, { fade: .4 });   // 换配色保持官网的交叉渐变
+    applyAccent(ctl.figure);
+    try { localStorage.setItem(DRESS_KEY, `${id}-${curO}`); } catch {}
+    if (wardrobe) wardrobe.querySelectorAll('[data-dress]').forEach(b => b.classList.toggle('on',
+      b.dataset.outfit ? b.dataset.outfit === curO : b.dataset.dress === id));
+  };
+  const spinTo = i => {
+    if (!wheelEl) return;
+    const n = Math.max(0, Math.min(i, wheelEl.children.length - 1));
+    if (n !== wheelAt) { wheelAt = n; drawWheel(); }
+    wheelUntil = performance.now() + 8000;
+    clearTimeout(wheelTimer);
+    wheelTimer = setTimeout(() => {   // 停 300ms 自动穿上(官网同款;点击路径走立即穿)
+      const b = wheelEl && wheelEl.children[wheelAt];
+      if (b) wearWheel(b.dataset.scheme);
+    }, 300);
+  };
+  const openWheel = () => {
+    closeWheel();
+    const [curS] = (ctl.figure.scheme || savedDress).split('-');
+    wheelEl = document.createElement('div');
+    wheelEl.className = 'pet-wheel';
+    W_SCHEMES.forEach(sc => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'pet-wheel-item'; b.dataset.scheme = sc.id; b.title = sc.label;
+      b.innerHTML = `<img draggable="false" src="${new URL('vendor/whale/thumbs/' + sc.id + '.png', PET_BASE).href}" alt="${sc.label}"><span>${sc.label}</span>`;
+      wheelEl.appendChild(b);
+    });
+    stage.appendChild(wheelEl);
+    wheelEl.style.width = `${(2 * 3 + 1) * 54}px`;   // 7 个形象的宽度(官网 WHEEL_STEP×(WHEEL_SIDE×2+1))
+    wheelAt = Math.max(0, W_SCHEMES.findIndex(s => s.id === curS));
+    drawWheel(); placeWheel();
+    wheelUntil = performance.now() + 8000;
+    say(pick(['头顶这排都是我,挑一个吧~', '拨一拨这排形象,看中哪个点哪个~']), { hold: 1600 });
+    /* 触屏:按住轮盘横向拨动切换;轻点某个形象立即穿上(轮盘每次重建,监听随之挂载) */
+    wheelEl.addEventListener('pointerdown', e => { wheelLastX = e.clientX; wheelDrag = 0; wheelEl.setPointerCapture(e.pointerId); });
+    wheelEl.addEventListener('pointermove', e => {
+      if (!wheelEl.hasPointerCapture || !wheelEl.hasPointerCapture(e.pointerId)) return;
+      const dx = e.clientX - wheelLastX; wheelLastX = e.clientX;
+      wheelDrag += Math.abs(dx); wheelAcc += dx;
+      while (Math.abs(wheelAcc) >= 54) { spinTo(wheelAt + (wheelAcc < 0 ? 1 : -1)); wheelAcc -= 54 * Math.sign(wheelAcc); }
+    });
+    wheelEl.addEventListener('pointerup', e => {
+      if (wheelDrag >= 12) return;   // 是拨动不是点按
+      /* setPointerCapture 会把 pointerup 重定向到轮盘本身:用坐标找手指下的形象 */
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const b = el && el.closest && el.closest('.pet-wheel-item');
+      if (!b || !wheelEl.contains(b)) return;
+      wheelAt = [...wheelEl.children].indexOf(b); drawWheel();
+      wearWheel(b.dataset.scheme);
+    });
+    wheelEl.addEventListener('pointercancel', () => { wheelAcc = 0; });
+  };
+  const toggleWheel = () => { if (wheelEl) closeWheel(); else openWheel(); };
+  /* 滚轮切一格(官网 WHEEL_NOTCH 同款):只在轮盘或换装按钮上滚动时生效 */
+  addEventListener('wheel', e => {
+    if (!wheelEl || !(e.target.closest && e.target.closest('.pet-wheel, .pt-btn[data-act="dress"]'))) return;
+    e.preventDefault();
+    wheelAcc += Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+    if (Math.abs(wheelAcc) < 40) return;
+    spinTo(wheelAt + Math.sign(wheelAcc));
+    wheelAcc = 0;
+  }, { passive: false });
+  addEventListener('keydown', e => { if (e.key === 'Escape') { closeWheel(); closeWardrobe(); closeSettings(); closeType(); } });
 
   /* ---------- 悬停按钮组(官网同款):鼠标停在她身上时出现在身侧,走动跟随 ----------
      换装(开衣柜) / 切换风格(站点双主题,走导航按钮的既有换肤路径) / 设置(LLM 提供商与 API Key)。
@@ -1236,7 +1329,7 @@ async function boot() {
       const btn = e.target.closest('.pt-btn');
       if (!btn) return;
       const act = btn.dataset.act;
-      if (act === 'dress') toggleWardrobe();
+      if (act === 'dress') { if (isNarrow()) toggleWheel(); else toggleWardrobe(); }   // 手机:头顶轮盘;电脑:衣柜面板
       else if (act === 'theme') {
         const st = document.getElementById('styleToggle');
         if (st) st.click();   // 走站点自己的换肤路径:localStorage 记忆/开屏/广播事件全一致
