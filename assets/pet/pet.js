@@ -693,30 +693,10 @@ async function boot() {
   for (const [id, items] of Object.entries(TOURS[pageKey] || {})) {
     const el = document.getElementById(id);
     if (!el) continue;
-    let prepped = false;
-    new IntersectionObserver(es => {
-      if (!es.some(e => e.isIntersecting) || prepped) return;
-      if (!hostMode || saidOnce.has('sec:' + id) || document.documentElement.hasAttribute('data-intro')) return;
-      prepped = true;
-      /* 手机不隐藏卡片:巡讲逐项揭示是桌面编排,手机的滚动恢复/地址栏高度变化会让
-         揭示触发条件落空,卡片会卡在隐藏态(用户实测过)。手机上内容直接可见,
-         宠物巡讲只负责走到旁边说话 */
-      if (isNarrow()) return;
-      items.forEach(it => {
-        const t = (document.querySelectorAll(it.sel))[it.i || 0];
-        if (t) t.classList.add('pet-item-wait');
-      });
-      /* 桌面看门狗:待场 6s 还没开讲(返回页恢复滚动位置不触发巡讲 IO 等任何路径),
-         就把内容全部放出来——卡片永远不能停在隐藏态 */
-      setTimeout(() => {
-        if (document.hidden) return;
-        const stillWaiting = items.every(it => {
-          const t = (document.querySelectorAll(it.sel))[it.i || 0];
-          return t && t.classList.contains('pet-item-wait');
-        });
-        if (stillWaiting) revealAllWaits();
-      }, 6000);
-    }, { threshold: .05 }).observe(el);
+    /* 卡片不再走「隐藏待场→巡讲逐项揭示」的编排:揭示触发依赖滚动位置/视口检查,
+       手机的滚动恢复与地址栏高度变化会让它落空,返回主页时内容卡在隐藏态
+       (悬浮栏返回走 bfcache 有恢复兜底,整页重载的返回没有——两条路都别埋雷)。
+       巡讲保留走到旁边说话的部分;revealAllWaits + bfcache 兜底继续留着兜旧状态 */
     new IntersectionObserver(es => {
       if (!es.some(e => e.isIntersecting)) return;
       if (!hostMode || saidOnce.has('sec:' + id)) return;
