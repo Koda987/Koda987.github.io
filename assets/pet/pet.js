@@ -1726,26 +1726,25 @@ async function boot() {
   const LIKE_KEY = 'koda.pet.likes';   // 本机兜底计数
   const likeFmt = n => n > 999 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(n);
   let likeBusy = false;
-  let likeKnown = null;   // 最近一次已知的全站赞数(开屏 get 填充,点赞 hit 校准)
+  let likeKnown = null;   // 远端权威赞数:只有远端响应能写它(开屏 get 填充,点赞 hit 校准)
   function likeOnce(btn) {
     if (likeBusy) return;
     likeBusy = true;
     setTimeout(() => { likeBusy = false; }, 350);   // 350ms 后即可再点:别让远端慢吞掉点击(每次点击各记一票)
-    /* 乐观更新:点击瞬间就 +1 亮出来(用已知全站数或本机数),远端结果到了再校准——
-       网络再慢按钮也有即时反馈 */
-    const base = likeKnown ?? (() => { try { return parseInt(localStorage.getItem(LIKE_KEY), 10) || 0; } catch { return 0; } })();
-    const count = base + 1;
+    /* 乐观更新:点击瞬间就 +1 亮出来(基于远端权威数),远端结果到了无条件校准——
+       本机 localStorage 只是断网时的兜底显示,不参与和远端的比较(那是双端数字
+       不一致的根源:各设备本机数不同,只增不减的守卫会让它们永远各卡各的) */
+    const count = (likeKnown ?? 0) + 1;
     const badge = btn.querySelector('.pt-like-badge');
     if (badge) badge.textContent = likeFmt(count);
-    try { localStorage.setItem(LIKE_KEY, String(count)); } catch {}
-    /* 远端自增:后台跑,不挡爱心演出;结果只增不减地校准徽章 */
+    /* 远端自增:后台跑,不挡爱心演出;返回值无条件采用(远端 = 唯一权威) */
     if (LIKE_API) (async () => {
       try {
         const c = new AbortController(); const t = setTimeout(() => c.abort(), 2500);
         const r = await fetch(`${LIKE_API}/hit/${LIKE_NS}/${LIKE_NAME}`, { signal: c.signal }).finally(() => clearTimeout(t));
         const j = await r.json();
-        if (j && typeof j.value === 'number' && j.value >= count) { likeKnown = j.value; if (badge) badge.textContent = likeFmt(j.value); }
-      } catch { /* 远端不行:乐观数已亮出,本机也记了 */ }
+        if (j && typeof j.value === 'number') { likeKnown = j.value; if (badge) badge.textContent = likeFmt(j.value); }
+      } catch { /* 远端不可达:乐观数已亮出(断网兜底),下次可达自动对齐 */ }
     })();
     btn.classList.add('burst');
     setTimeout(() => btn.classList.remove('burst'), 700);
@@ -1772,7 +1771,8 @@ async function boot() {
       const c = new AbortController(); const t = setTimeout(() => c.abort(), 6000);
       const r = await fetch(`${LIKE_API}/get/${LIKE_NS}/${LIKE_NAME}`, { signal: c.signal }).finally(() => clearTimeout(t));
       const j = await r.json();
-      if (j && typeof j.value === 'number' && j.value >= (parseInt(badge.textContent, 10) || 0)) { likeKnown = j.value; badge.textContent = likeFmt(j.value); }
+      /* 远端权威:无条件采用(不与本机数比较——那是双端数字不一致的根源) */
+      if (j && typeof j.value === 'number') { likeKnown = j.value; badge.textContent = likeFmt(j.value); }
     } catch { /* 拿不到就维持本机数 */ }
   }
   /* 预热已移除:figure.preload() 会一口气拉全部 24 种配色×服装(≈14MB、1272 张贴图)——
