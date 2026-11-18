@@ -698,11 +698,15 @@ async function boot() {
       if (!es.some(e => e.isIntersecting) || prepped) return;
       if (!hostMode || saidOnce.has('sec:' + id) || document.documentElement.hasAttribute('data-intro')) return;
       prepped = true;
+      /* 手机不隐藏卡片:巡讲逐项揭示是桌面编排,手机的滚动恢复/地址栏高度变化会让
+         揭示触发条件落空,卡片会卡在隐藏态(用户实测过)。手机上内容直接可见,
+         宠物巡讲只负责走到旁边说话 */
+      if (isNarrow()) return;
       items.forEach(it => {
         const t = (document.querySelectorAll(it.sel))[it.i || 0];
         if (t) t.classList.add('pet-item-wait');
       });
-      /* 看门狗:待场 6s 还没开讲(返回页恢复滚动位置不触发巡讲 IO 等任何路径),
+      /* 桌面看门狗:待场 6s 还没开讲(返回页恢复滚动位置不触发巡讲 IO 等任何路径),
          就把内容全部放出来——卡片永远不能停在隐藏态 */
       setTimeout(() => {
         if (document.hidden) return;
@@ -726,6 +730,9 @@ async function boot() {
       }, 350);
     }, { threshold: .45 }).observe(el);
   }
+  /* bfcache 兜底:从详情页返回时若走了页面前进缓存(手机浏览器常态),冻结期的待场
+     状态会原样恢复——恢复即全部揭示,卡片不能停在隐藏态 */
+  addEventListener('pageshow', e => { if (e.persisted) revealAllWaits(); });
   /* ---------- 功能演示屏(官网 features 的 enter/leave 机制 + 断点续播) ----------
      进屏 enter:从上次停下的那一幕继续演(官网 next 计数器);演完只走回站位不重播。
      离屏 leave:令牌作废、气泡清空、面板说明区收起,总结只在播完后保留。
