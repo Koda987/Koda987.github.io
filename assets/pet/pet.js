@@ -1176,7 +1176,9 @@ async function boot() {
   /* ---------- 手机版换装轮盘(官网 look wheel 同款):≤600px 时「换装」不开衣柜面板,
      而是在她头顶亮出一排收藏形象——滚轮/手指拨动切换,停在某个形象 300ms 自动穿上,
      点一下立即穿。电脑版(>600px)保持衣柜面板不变 ---------- */
-  const isNarrow = () => innerWidth <= 600;
+  /* 手机判定:窄屏或触屏(Via 等浏览器 1:1 像素比,手机 innerWidth 可能 >600,
+     宽度判定会漏;触屏设备主指针必是 coarse) */
+  const isMobileLike = () => innerWidth <= 600 || matchMedia('(pointer: coarse)').matches;
   let wheelEl = null, wheelAt = 0, wheelUntil = 0, wheelTimer = 0, wheelAcc = 0, wheelLastX = 0, wheelDrag = 0;
   const closeWheel = () => { clearTimeout(wheelTimer); wheelTimer = 0; if (wheelEl) { wheelEl.remove(); wheelEl = null; } };
   const drawWheel = () => {
@@ -1348,7 +1350,7 @@ async function boot() {
       const btn = e.target.closest('.pt-btn');
       if (!btn) return;
       const act = btn.dataset.act;
-      if (act === 'dress') { if (isNarrow()) toggleWheel(); else toggleWardrobe(); }   // 手机:头顶轮盘;电脑:衣柜面板
+      if (act === 'dress') { if (isMobileLike()) toggleWheel(); else toggleWardrobe(); }   // 触屏/窄屏:头顶轮盘;鼠标大屏:衣柜面板
       else if (act === 'theme') {
         const st = document.getElementById('styleToggle');
         if (st) st.click();   // 走站点自己的换肤路径:localStorage 记忆/开屏/广播事件全一致
