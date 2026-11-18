@@ -440,10 +440,22 @@
             .then(function () { return introMobile ? type(segs[2], 170) : wait(0); })
             .then(function () {                                    // 字"活过来"的时刻:鲸鱼此刻登场/蹦一下
                 document.dispatchEvent(new CustomEvent('koda:intro-alive'));
-                return wait(900);
+                /* 开屏等宠物:贴图已在开屏期间并行预载(pet.js __petReady);
+                   弱网上若还没就绪,开屏多留一会儿,揭幕时她就能直接登场 */
+                var petReady = (window.__petReady && window.__petReady.then) ? window.__petReady : Promise.resolve();
+                return Promise.all([wait(900), Promise.race([petReady, wait(8000)])]);
             })
             .then(finish);
-        setTimeout(finish, 8000);                // 兜底：任何卡壳 8 秒内必揭幕
+        /* 兜底揭幕:8s 基础上限;宠物(开屏期并行预载)就绪前最多宽限 6s——
+           弱网揭幕时她已就位,不再「开屏放完了、宠物还在路上」的空窗;
+           非宠物页(__petWanted 未设)照旧 8s 必揭幕 */
+        setTimeout(function () {
+            var deadline = Date.now() + 6000;
+            (function cap() {
+                if (window.__petReadyFlag || !window.__petWanted || Date.now() > deadline) { finish(); return; }
+                setTimeout(cap, 300);
+            })();
+        }, 8000);
     }
 })();
 

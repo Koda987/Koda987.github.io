@@ -239,6 +239,20 @@ const warmVoice = () => { try { voice.warm(); } catch { /* 个别浏览器不让
 addEventListener('pointerdown', warmVoice, { capture: true });
 addEventListener('keydown', warmVoice, { capture: true });
 
+/* 贴图预载与开屏动画并行:开屏播的几秒正好用来下 1.9MB 贴图——开屏一结束宠物就位,
+   不再「开屏放完了才开始下载」,弱网上登场被拖几十秒。只拉网络与解码,不碰 DOM;
+   失败由 boot 的 await 接住(die 路径),这里只存 promise 不消费 */
+let figurePromise = null;
+const ensureFigure = () => (figurePromise ??= createWhaleFigure(undefined, { scheme: savedDress, loadImage: petLoadImage }));
+if (stage) {
+  ensureFigure();
+  /* 开屏等宠物:site.js 的揭幕兜底会等这两个信号(见 site.js intro 尾段)——
+     贴图在开屏期间并行下载,快网零等待;慢网开屏多停一会儿,揭幕时她已就位 */
+  window.__petWanted = true;
+  window.__petReady = figurePromise.catch(() => {});
+  figurePromise.then(() => { window.__petReadyFlag = true; }, () => { window.__petReadyFlag = true; });
+}
+
 async function boot() {
   if (!stage) return;
   warmVoice();   // 音库/拼音表提前拉好,别等第一句台词才下载
@@ -259,7 +273,7 @@ async function boot() {
   }, 350);
   let ctl;
   try {
-    const figure = await createWhaleFigure(undefined, { scheme: savedDress, loadImage: petLoadImage });
+    const figure = await ensureFigure();   // 开屏期间已并行预载,这里通常瞬时就绪
     clearInterval(progTimer);
     progEl.remove();
     ctl = createPet(
