@@ -220,6 +220,7 @@
         document.addEventListener('koda:intro-done', releaseBento);
         setTimeout(releaseBento, 8500);         // 兜底：开屏任何卡壳也必放行
     } else {
+        root.classList.remove('intro-pending');   // head 已标待开屏但最终不符合(如 reduced-motion):撤掉静态遮罩
         releaseBento();
     }
 
@@ -391,10 +392,16 @@
         try { sessionStorage.setItem('koda.intro', '1'); } catch (e) {}
         var root = document.documentElement;
         root.setAttribute('data-intro', '');
-        var veil = document.createElement('div');
-        veil.id = 'intro-screen';
-        veil.innerHTML = '<div class="intro-line"><span class="intro-text"></span><span class="intro-caret"></span></div>';
-        document.body.appendChild(veil);
+        /* 遮罩复用:首页的静态遮罩(body 顶部,head 引导脚本按会话标记 intro-pending 显隐)
+           首帧就在——不再由本脚本补建(补建会晚于首帧,主页闪几帧才被盖上);
+           其他页面/切风格触发时没有静态遮罩,才现建 */
+        var veil = document.getElementById('intro-screen');
+        if (!veil) {
+            veil = document.createElement('div');
+            veil.id = 'intro-screen';
+            veil.innerHTML = '<div class="intro-line"><span class="intro-text"></span><span class="intro-caret"></span></div>';
+            document.body.appendChild(veil);
+        }
         var text = veil.querySelector('.intro-text');
         var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
         // 逐字弹出（官网 glyph-pop:每个字从下方以弹簧曲线跳进来,光标跟在后面）
@@ -423,6 +430,7 @@
                 setTimeout(function () {
                     veil.remove();
                     root.removeAttribute('data-intro');
+                    root.classList.remove('intro-pending');
                     document.dispatchEvent(new CustomEvent('koda:intro-done'));
                 }, 600);
             }, 300);

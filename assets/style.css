@@ -1505,11 +1505,13 @@ html[data-intro] body { overflow: hidden; }  /* 锁内容:背后不随滚轮走 
 #intro-screen {
     position: fixed; inset: 0; z-index: 1400;
     background: var(--bg);
-    display: flex; align-items: center; justify-content: center;
+    display: none; align-items: center; justify-content: center;   /* 默认隐藏:静态遮罩常驻 DOM,由 intro-pending/data-intro 决定显隐 */
     transition: opacity 0.6s ease;
     animation: introVeilIn 0.22s ease-out;   /* 切换风格触发时柔和盖上来,不硬切 */
 }
 @keyframes introVeilIn { from { opacity: 0; } }
+html.intro-pending #intro-screen, html[data-intro] #intro-screen { display: flex; }
+html.intro-pending #intro-screen { animation: none; }   /* 页面加载路径:首帧就是不透明的,不许渐入 */
 #intro-screen.out { opacity: 0; pointer-events: none; }
 .intro-line {
     font-size: clamp(2.2rem, 5.6vw, 3.5rem);      /* 官网:打字发生在品牌字标的字号级别 */
