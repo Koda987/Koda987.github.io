@@ -263,6 +263,7 @@ async function boot() {
   const bootT0 = performance.now();
   const progEl = document.createElement('div');
   progEl.className = 'pet-bubble pop';
+  progEl.style.zIndex = '1500';   // 开屏等宠物的期间,进度气泡要浮在开屏层(z-1400)之上
   progEl.style.left = `${Math.max(8, Math.round(innerWidth / 2 - 64))}px`;
   progEl.style.top = `${Math.max(60, Math.round(innerHeight - 150))}px`;
   progEl.style.setProperty('--tail', '24px');

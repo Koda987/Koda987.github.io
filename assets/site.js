@@ -448,22 +448,21 @@
             .then(function () { return introMobile ? type(segs[2], 170) : wait(0); })
             .then(function () {                                    // 字"活过来"的时刻:鲸鱼此刻登场/蹦一下
                 document.dispatchEvent(new CustomEvent('koda:intro-alive'));
-                /* 开屏等宠物:贴图已在开屏期间并行预载(pet.js __petReady);
-                   弱网上若还没就绪,开屏多留一会儿,揭幕时她就能直接登场 */
+                /* 等待态:打字已完,若宠物贴图还没就绪,打字行转为缓隐脉冲(如加载动画),
+                   最长等 15s;宠物就绪即揭幕。pet.js __petReady 在所有贴图加载完成后 resolve */
+                var line = veil.querySelector('.intro-line');
+                if (line) line.classList.add('intro-hold');
                 var petReady = (window.__petReady && window.__petReady.then) ? window.__petReady : Promise.resolve();
-                return Promise.all([wait(900), Promise.race([petReady, wait(8000)])]);
+                return Promise.all([wait(600), Promise.race([petReady, wait(15000)])]);
             })
-            .then(finish);
-        /* 兜底揭幕:8s 基础上限;宠物(开屏期并行预载)就绪前最多宽限 6s——
-           弱网揭幕时她已就位,不再「开屏放完了、宠物还在路上」的空窗;
-           非宠物页(__petWanted 未设)照旧 8s 必揭幕 */
-        setTimeout(function () {
-            var deadline = Date.now() + 6000;
-            (function cap() {
-                if (window.__petReadyFlag || !window.__petWanted || Date.now() > deadline) { finish(); return; }
-                setTimeout(cap, 300);
-            })();
-        }, 8000);
+            .then(function () {
+                var line = veil.querySelector('.intro-line');
+                if (line) line.classList.remove('intro-hold');   // 摘掉脉冲,让揭幕淡出接管
+                finish();
+            });
+        /* 绝对上限:开屏全程(打字+等宠物)最多 20s 必揭幕;非宠物页(__petWanted 未设)不受影响,
+           打字链若卡壳也在 20s 内揭幕 */
+        setTimeout(finish, 20000);
     }
 })();
 

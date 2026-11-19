@@ -1533,6 +1533,10 @@ html.intro-pending #intro-screen { animation: none; }   /* 页面加载路径:�
 .intro-line .g { display: inline-block; animation: introGlyph 0.42s cubic-bezier(0.3, 1.7, 0.5, 1) both; }
 @keyframes introGlyph { from { transform: translateY(10px) scale(0.55); } }
 .intro-line.out { opacity: 0; transform: translateY(8px) scale(0.92); }   /* "折进"她登场 */
+
+/* 等待态(弱网:贴图未就绪):打字行缓隐脉冲,如加载动画;最长 15s,就绪即揭幕 */
+.intro-line.intro-hold { animation: introHold 1.5s ease-in-out infinite alternate; }
+@keyframes introHold { from { opacity: 1; } to { opacity: .3; } }
 .intro-caret {
     display: inline-block; width: 4px; height: 1em; margin-left: 8px;
     vertical-align: -0.12em; border-radius: 2px; background: var(--accent);
