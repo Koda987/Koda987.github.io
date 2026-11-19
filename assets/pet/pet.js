@@ -22,7 +22,7 @@ import { createVoice, textSteps, STEP_MS } from './voice.js';
    跨页过渡结束的瞬间,新页引擎还要重新拉模型与贴图、建 WebGL 纹理,
    舞台这段时间是空的 → 宠物"消失一会儿"才出现。
    把全部 pet 资源存进 IndexedDB,翻页时秒读秒显(不赌 HTTP 缓存与网络) */
-const PET_ASSETS_V = 3;
+const PET_ASSETS_V = 2;
 const petMem = new Map();
 const petIDB = {
   _p: null,   // 复用同一个连接(原来每次都重开,几十个请求并发时把 IDB 堵死)
