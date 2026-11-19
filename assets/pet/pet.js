@@ -726,7 +726,14 @@ async function boot() {
   }
   /* bfcache 兜底:从详情页返回时若走了页面前进缓存(手机浏览器常态),冻结期的待场
      状态会原样恢复——恢复即全部揭示,卡片不能停在隐藏态 */
-  addEventListener('pageshow', e => { if (e.persisted) revealAllWaits(); });
+  addEventListener('pageshow', e => {
+    document.documentElement.classList.remove('pet-leaving');   // 返回/恢复:撤掉丢弃期隐藏
+    if (e.persisted) revealAllWaits();                          // bfcache 恢复:待场状态原样揭示
+  });
+  addEventListener('pagehide', () => {
+    /* 重载/返回的加载窗口:旧页面最后画面只留背景与宠物,不再闪「内容全亮的结束态」 */
+    document.documentElement.classList.add('pet-leaving');
+  });
   /* ---------- 功能演示屏(官网 features 的 enter/leave 机制 + 断点续播) ----------
      进屏 enter:从上次停下的那一幕继续演(官网 next 计数器);演完只走回站位不重播。
      离屏 leave:令牌作废、气泡清空、面板说明区收起,总结只在播完后保留。

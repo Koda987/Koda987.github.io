@@ -1499,6 +1499,13 @@ html[data-theme="bauhaus"] ::-webkit-scrollbar-thumb {
    空屏打字 → 文字淡出 → 揭幕淡出；期间锁滚动、卡片仍被
    boot-hold 压着，三色环等揭幕后 2.4s 缓缓亮起（官网节奏）。
    ============================================================ */
+/* 开屏前零闪现:boot-hold 期间只露遮罩与宠物(她要浮在开屏层里登场),其余隐藏
+   ——新页首帧 = 纯背景 + 遮罩,主页内容不会闪现 */
+body.boot-hold > :not(#intro-screen):not(#pet-stage) { visibility: hidden; }
+/* 页面被丢弃时(pagehide,重载/返回的加载窗口):旧页面的最后画面只留背景与宠物,
+   不再闪「内容全亮的结束态」;宠物保留是为了跨页过渡快照里她不消失 */
+html.pet-leaving body > :not(#pet-stage) { visibility: hidden !important; }
+
 html[data-intro] { overflow-y: scroll; }   /* 不用 hidden:滚动条保持在位,揭幕时页面宽度不跳变(开屏层盖着,看不见背后) */
 html[data-intro] body { overflow: hidden; }  /* 锁内容:背后不随滚轮走 */
 
