@@ -1806,6 +1806,22 @@ async function boot() {
      弱网下它和首屏抢带宽(登场被拖到几十秒),还会在高并发解码下产出坏位图,
      之后切换配色就渲染成蓝色积木块。现在切换时按需加载(约 2MB/套,经 IDB 缓存,
      同一套第二次切换瞬时);慢网进度反馈见 boot 里的进度气泡 */
+  /* ?petdiag:页面角落显示版本诊断(手机上没有控制台,用它确认浏览器跑的是哪版代码)——
+     页面戳 = 本页 HTML 引用的 pet.js 版本;服务器戳 = 不走缓存现拉的服务器当前版本。
+     两者不一致 = 该浏览器在拿缓存的旧代码(小米等浏览器激进缓存会这样),页面是旧逻辑 */
+  if (new URLSearchParams(location.search).has('petdiag')) {
+    const showDiag = (mine, srv) => {
+      const d = document.createElement('div');
+      d.style.cssText = 'position:fixed;top:4px;left:4px;z-index:99999;background:#000d;color:#0f0;font:11px/1.5 monospace;padding:4px 7px;border-radius:4px;pointer-events:none';
+      d.textContent = `页面戳:${mine} | 服务器:${srv} | ${mine === srv ? '缓存新鲜 ✓' : '缓存过期!正在跑旧代码 ✗'}`;
+      document.body.appendChild(d);
+    };
+    const mine = [...document.scripts].find(s => s.src.includes('pet.js'))?.src.split('v=')[1] || '?';
+    fetch(location.pathname, { cache: 'no-store' })
+      .then(r => r.text())
+      .then(t => { showDiag(mine, (t.match(/pet\.js\?v=([\w-]+)/) || [])[1] || '?'); })
+      .catch(() => showDiag(mine, '拉取失败'));
+  }
   /* ?petdebug:控制台里看她的状态、已说过的台词和冷却,调台词节奏用 */
   if (new URLSearchParams(location.search).has('petdebug')) {
     window.__pet = {
