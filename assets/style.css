@@ -1273,9 +1273,11 @@ input[type="range"].demo-range::-webkit-slider-thumb {
    旧快照多留 0.55s,盖住新页初始化的空窗(Chrome/Edge 跨文档 VT 生效) */
 @media (prefers-reduced-motion: no-preference) {
     ::view-transition-old(pet-stage) { animation: petLinger 0.55s linear both; }
-    ::view-transition-new(pet-stage) { animation: petIn 0.3s ease-out both; }
+    /* 新页快照的宠物立即不透明,直接盖住旧快照(交接而非叠影):旧渐入+旧常亮会
+       叠出 0.3s 的半透明双影;位置由跨页记忆对齐,视觉上是她原地换页续行。
+       旧快照仍留 0.55s 兜底新页 boot 空窗(新宠物未画时旧宠物从下层透出) */
+    ::view-transition-new(pet-stage) { animation: none; }
     @keyframes petLinger { from, to { opacity: 1; } }
-    @keyframes petIn { from { opacity: 0; } }
 }
 /* 拖拽宠物期间整页禁用文字选择，防止划过正文时触发浏览器原生拖选 */
 html.pet-grab, html.pet-grab * {
