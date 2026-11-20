@@ -290,6 +290,7 @@ async function boot() {
     );
   } catch (e) { clearInterval(progTimer); progEl.remove(); window.__bootErr = (e && e.message) || String(e); die(); return; }   // 贴图拉不下来之类:整个不出现,页面照常
   if (prev && (prev.facing === 1 || prev.facing === -1)) ctl.pet.facing = prev.facing;
+  if (prev) ctl.holdRoam(1.2);   // 落地定身:站在跨页记忆的位置上,不与旧页残留影像错位成两只
   if (!prev) {
     // 首访登场:从屏幕右侧外跑进来(不是从天上掉下来),跑到台中再交给迎宾
     const b0 = bounds();
