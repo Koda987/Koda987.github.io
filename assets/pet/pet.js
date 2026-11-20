@@ -730,7 +730,11 @@ async function boot() {
      状态会原样恢复——恢复即全部揭示,卡片不能停在隐藏态 */
   addEventListener('pageshow', e => {
     document.documentElement.classList.remove('pet-leaving');   // 返回/恢复:撤掉丢弃期隐藏
-    if (e.persisted) revealAllWaits();                          // bfcache 恢复:待场状态原样揭示
+    /* 现行代码已不在任何视口隐藏卡片,但旧代码冻结的页面(浏览器 bfcache/缓存
+       恢复的旧状态)里可能残留 pet-item-wait——小米等激进缓存浏览器尤甚。
+       每次展示都强制揭示一遍 + 1s 后再兜一次,任何来源的残留都兜住 */
+    revealAllWaits();
+    setTimeout(revealAllWaits, 1000);
   });
   addEventListener('pagehide', () => {
     /* 重载/返回的加载窗口:旧页面最后画面只留背景与宠物,不再闪「内容全亮的结束态」 */
