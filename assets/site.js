@@ -220,7 +220,7 @@
         document.addEventListener('koda:intro-done', releaseBento);
         setTimeout(releaseBento, 8500);         // 兜底：开屏任何卡壳也必放行
     } else {
-        root.classList.remove('intro-pending');   // head 已标待开屏但最终不符合(如 reduced-motion):撤掉静态遮罩
+        document.documentElement.classList.remove('intro-pending');   // head 已标待开屏但最终不符合(如 reduced-motion):撤掉静态遮罩
         releaseBento();
     }
 
