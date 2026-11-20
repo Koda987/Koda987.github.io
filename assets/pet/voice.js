@@ -39,13 +39,16 @@ export function createVoice({ base }) {
       master = ctx.createGain(); master.gain.value = 1; master.connect(ctx.destination);
     }
     if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-    if (ctx.state !== 'running') return null;
-    if (!bank) { void fetchBank(); return null; }
-    if (!bank.buffer) {
-      if (!bank.bytes) return null;   // 音库还在下载:这句先不出声,打字照常走
-      decoding ??= ctx.decodeAudioData(bank.bytes.slice(0)).then(b => { bank.buffer = b; }, err => { console.error('说话声没能解码:', err); bank = null; });
-      return null;
+    /* 下载与解码都不需要「运行中」状态:挂起期间照常进行,手势解锁的瞬间声音即完全就绪
+       (此前解码被运行状态门控,手势后还要再等解码,首几句总是哑的) */
+    if (!bank) void fetchBank();
+    else if (!bank.buffer && bank.bytes && !decoding) {
+      decoding = ctx.decodeAudioData(bank.bytes.slice(0)).then(
+        b => { bank.buffer = b; decoding = null; },
+        err => { console.error('说话声没能解码:', err); bank = null; decoding = null; });
     }
+    if (ctx.state !== 'running') return null;
+    if (!bank || !bank.buffer) return null;
     return { ctx, master };
   }
   function fetchBank() {
