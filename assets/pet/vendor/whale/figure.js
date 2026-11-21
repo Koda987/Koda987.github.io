@@ -442,9 +442,12 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
    * over, the clock being the frames' `t` from `o.at` (the pet's time now) or else from the next frame drawn;
    * another outfit is another set of parts, so the rig is built again and the change is a cut.
    */
+  let schemeSeq = 0; // 换装竞态令牌:连点两套配色时,旧请求的慢加载不许覆盖后点的目标(谁最后点谁上屏)
   function setScheme(id, o = {}) {
     const next = pickOf(id), key = `${next.scheme}-${next.outfit}`;
+    const req = ++schemeSeq;
     const apply = set => {
+      if (req !== schemeSeq) return;   // 已有更新的换装请求:这次加载的结果丢弃
       endFade();
       if (scheme === next.scheme && outfit === next.outfit && tex === set.tex) return;
       scheme = next.scheme;

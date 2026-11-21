@@ -15,7 +15,7 @@ import { createPet } from './vendor/kit/body.js';
 window.addEventListener('error', e => { (window.__petErrs = window.__petErrs || []).push(e.message + ' @' + e.lineno); });
 window.addEventListener('unhandledrejection', e => { (window.__petErrs = window.__petErrs || []).push('REJ: ' + ((e.reason && e.reason.message) || e.reason)); });
 
-import { createWhaleFigure } from './vendor/whale/figure.js';
+import { createWhaleFigure } from './vendor/whale/figure.js?v=20261107-262';
 import { createVoice, textSteps, STEP_MS } from './voice.js';
 
 /* ---------- 资源接续缓存(IndexedDB) ----------
@@ -230,7 +230,10 @@ const applyAccent = f => { try {
   const ac = (f.colors && f.colors.z) || ((f.schemes || []).find(s => (f.scheme || '').startsWith(s.id)) || {}).accent || '#4d6bfe';
   document.documentElement.style.setProperty('--pet-accent', ac); } catch {} };
 const PET_BASE = new URL('./', import.meta.url);   // 本模块目录:衣柜预览图在项目子页也能正确寻址
-const savedDress = (() => { try { return localStorage.getItem(DRESS_KEY) || 'deepseek'; } catch { return 'deepseek'; } })();
+/* 最后一次换装请求(setScheme 异步生效,点击瞬间读 figure.scheme 拿到的还是旧值——
+   连点时的组装与高亮一律以「请求值」为准,不受加载进度影响) */
+let savedDress = (() => { try { return localStorage.getItem(DRESS_KEY) || 'deepseek'; } catch { return 'deepseek'; } })();
+if (!savedDress.includes('-')) savedDress += '-maid';   // 旧存档可能是裸配色:补上默认服装段
 
 const voice = createVoice({ base: PET_BASE });   // 说话声:动物森友会式音节库(官方 speech 移植)
 /* 音库预热必须在 boot 可调之前就绪:boot 有「续访路径」在模块求值期就执行,声明放后面会踩 TDZ(宠物全灭)。
@@ -1180,7 +1183,7 @@ async function boot() {
   const openWardrobe = () => {
     if (!wardrobe) return;
     wardrobe.hidden = false; wardrobe.classList.add('open');
-    const [s0, o0] = (ctl.figure.scheme || savedDress).split('-');
+    const [s0, o0] = savedDress.split('-');
     wardrobe.querySelectorAll('[data-dress]').forEach(b => b.classList.toggle('on', b.dataset.outfit ? b.dataset.outfit === o0 : b.dataset.dress === s0));
     placeWardrobe();
     say(pick(['要给我换个新造型吗？', '今天想让我穿哪一套？', '这件好看吗？']), { hold: 2400 });
@@ -1196,17 +1199,20 @@ async function boot() {
       + '<div class="pw-sec">服装</div><div class="pw-row pw-outfits">' + of + '</div>';
     wardrobe.querySelector('.pw-close').addEventListener('click', closeWardrobe);
     wardrobe.querySelectorAll('[data-dress]').forEach(btn => btn.addEventListener('click', () => {
-      const [curScheme, curOutfit] = (ctl.figure.scheme || savedDress).split('-');
+      /* 组装与高亮都基于「最后一次请求」(savedDress):setScheme 异步生效,点击瞬间读
+         figure.scheme 还是切换前的值——高亮回退到旧配色正是这里的旧读法造成的 */
+      const [curScheme, curOutfit] = savedDress.split('-');
       /* 配色按钮保留当前服装;服装按钮保留当前配色——两个维度互不重置 */
       const id = btn.dataset.outfit ? `${curScheme}-${btn.dataset.outfit}` : `${btn.dataset.dress}-${curOutfit}`;
+      savedDress = id;
       restylePet();   // 等待动画先播,盖住加载/上传卡顿
       /* 官网同款:换配色 0.4s 交叉渐变(引擎 @mix 双贴图混合);换服装是换骨架,保持硬切 */
-      ctl.figure.setScheme(id, btn.dataset.outfit ? undefined : { fade: .4 });
-      applyAccent(ctl.figure);
+      const p = ctl.figure.setScheme(id, btn.dataset.outfit ? undefined : { fade: .4 });
+      p.then(() => applyAccent(ctl.figure));   // accent 随加载完成再刷新,否则读到旧配色
       try { localStorage.setItem(DRESS_KEY, id); } catch {}
-      const [curS, curO] = (ctl.figure.scheme || savedDress).split('-');
-    wardrobe.querySelectorAll('[data-dress]').forEach(b => b.classList.toggle('on',
-      b.dataset.outfit ? b.dataset.outfit === curO : b.dataset.dress === curS));
+      const [curS, curO] = id.split('-');
+      wardrobe.querySelectorAll('[data-dress]').forEach(b => b.classList.toggle('on',
+        b.dataset.outfit ? b.dataset.outfit === curO : b.dataset.dress === curS));
     }));
     stage.appendChild(wardrobe);
   })();
@@ -1255,14 +1261,14 @@ async function boot() {
   };
   const wearWheel = look => {
     clearTimeout(wheelTimer); wheelTimer = 0;
-    const cur = ctl.figure.scheme || savedDress;
-    if (look === cur) return;
+    if (look === savedDress) return;   // 已是最后一次请求:防抖(不读异步生效的 figure.scheme)
     const [nextS, nextO] = look.split('-');
-    const [curS, curO] = cur.split('-');
+    const [, curO] = savedDress.split('-');
+    savedDress = look;
     restylePet();   // 等待动画:盖住贴图加载/上传的卡顿(官网 restyle 同款)
     /* 换配色保持官网的交叉渐变;换服装是换骨架,保持硬切 */
-    ctl.figure.setScheme(look, nextO === curO ? { fade: .4 } : undefined);
-    applyAccent(ctl.figure);
+    const p = ctl.figure.setScheme(look, nextO === curO ? { fade: .4 } : undefined);
+    p.then(() => applyAccent(ctl.figure));   // accent 随加载完成再刷新,否则读到旧配色
     try { localStorage.setItem(DRESS_KEY, look); } catch {}
     if (wardrobe) wardrobe.querySelectorAll('[data-dress]').forEach(b => b.classList.toggle('on',
       b.dataset.outfit ? b.dataset.outfit === nextO : b.dataset.dress === nextS));
@@ -1281,7 +1287,7 @@ async function boot() {
   };
   const openWheel = () => {
     closeWheel();   // 不带 mute:打开动作本身不该让按钮组躲避
-    const cur = ctl.figure.scheme || savedDress;
+    const cur = savedDress;
     wheelEl = document.createElement('div');
     wheelEl.className = 'pet-wheel';
     /* 一排收藏形象 = 全部配色×服装组合(服装分组在前:先看同一套衣服的 8 个配色,再换下一套) */
