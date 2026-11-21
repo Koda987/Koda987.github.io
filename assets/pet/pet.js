@@ -1094,15 +1094,27 @@ async function boot() {
        离开 0.8s 后折起(TOOLS_LINGER);被拎起/甩出/蹲下(busy)与问答气泡挂着时不出现;
        指针在按钮上时冻结位置(官网:移动的是身体不是控件),离开后滑回身侧 */
     if (toolsEl) {
-      const tr = toolsEl.getBoundingClientRect();
-      const frozen = overTools || !!(lastPt && lastPt.x >= tr.x - 24 && lastPt.x <= tr.right + 24 && lastPt.y >= tr.y - 24 && lastPt.y <= tr.bottom + 24);
-      const near = frozen || !!(lastPt && ctl.hitPet && ctl.hitPet(lastPt));
-      if (near) toolsUntil = performance.now() + 800;
+      /* 官网 overRect:面板元素含 6px 边距的命中判定(轮盘无 hidden 概念,存在即开) */
+      const overRect = (el, pad) => {
+        if (!el) return false;
+        if (el !== wheelEl && el.hidden) return false;
+        const r = el.getBoundingClientRect();
+        return !!lastPt && lastPt.x >= r.left - pad && lastPt.x <= r.right + pad && lastPt.y >= r.top - pad && lastPt.y <= r.bottom + pad;
+      };
+      const frozen = overTools || !!(lastPt && overRect(toolsEl, 24));
+      /* 官网 near:光标在她身上(hitPet)/按钮组上/任一面板(轮盘/衣柜/设置/打字框)上 */
+      const near = frozen
+        || !!(lastPt && ctl.hitPet && ctl.hitPet(lastPt))
+        || overRect(wheelEl, 6) || overRect(wardrobe, 6) || overRect(settingsEl, 6) || overRect(typeEl, 6);
+      if (!near) toolsMuted = false;
+      if (near && !toolsMuted) toolsUntil = performance.now() + 800;
       const confirming = bubbleEl.classList.contains('ask') && !bubbleEl.hidden;
-      const show = !holding && performance.now() < toolsUntil && !confirming && !panelOpen() && !(ctl.busy && ctl.busy());
+      const show = !holding && performance.now() < toolsUntil && !confirming && !toolsMuted && !panelOpen() && !(ctl.busy && ctl.busy());
       if (show !== toolsOn) { toolsOn = show; showTools(show); }
       if (show && !frozen) placeTools();
     }
+    /* 临时探针:排查轮盘打开后按钮组收起(查完即删) */
+    window.__toolsDbg = { get lastPt() { return lastPt; }, get hit() { return lastPt && ctl.hitPet ? ctl.hitPet(lastPt) : null; }, get muted() { return toolsMuted; }, get untilIn() { return Math.round(toolsUntil - performance.now()); }, get on() { return toolsOn; } };
     /* 用户台词:官网 placeLines 同款——最新在底部(她的气泡上方 8px,没气泡则头顶上方 46px),
        旧的往上叠、以她气泡/头部为轴水平居中,每条带 ox/oy 相对头部的偏移做缓动跟走(dt*12) */
     {
@@ -1164,7 +1176,7 @@ async function boot() {
     const left = x - 64 - w >= 8 ? x - 64 - w : x + 64;   // 先放左侧(右侧留给悬停按钮组),左边放不下再放右
     wardrobe.style.left = `${Math.max(8, Math.min(left, W - w - 8))}px`;
   };
-  const closeWardrobe = () => { if (wardrobe) { wardrobe.hidden = true; wardrobe.classList.remove('open'); } };
+  const closeWardrobe = () => { if (wardrobe) { wardrobe.hidden = true; wardrobe.classList.remove('open'); } toolsMuted = true; toolsUntil = 0; };
   const openWardrobe = () => {
     if (!wardrobe) return;
     wardrobe.hidden = false; wardrobe.classList.add('open');
@@ -1207,7 +1219,7 @@ async function boot() {
      宽度判定会漏;触屏设备主指针必是 coarse) */
   const isMobileLike = () => innerWidth <= 600 || matchMedia('(pointer: coarse)').matches;
   let wheelEl = null, wheelAt = 0, wheelUntil = 0, wheelTimer = 0, wheelAcc = 0, wheelLastX = 0, wheelDrag = 0;
-  const closeWheel = () => { clearTimeout(wheelTimer); wheelTimer = 0; if (wheelEl) { wheelEl.remove(); wheelEl = null; } };
+  const closeWheel = (mute) => { clearTimeout(wheelTimer); wheelTimer = 0; if (wheelEl) { wheelEl.remove(); wheelEl = null; if (mute) { toolsMuted = true; toolsUntil = 0; } } };
   const drawWheel = () => {
     if (!wheelEl) return;
     const n = wheelEl.children.length;
@@ -1255,7 +1267,7 @@ async function boot() {
     }, 300);
   };
   const openWheel = () => {
-    closeWheel();
+    closeWheel();   // 不带 mute:打开动作本身不该让按钮组躲避
     const cur = ctl.figure.scheme || savedDress;
     wheelEl = document.createElement('div');
     wheelEl.className = 'pet-wheel';
@@ -1301,7 +1313,7 @@ async function boot() {
     });
     wheelEl.addEventListener('pointercancel', () => { wheelAcc = 0; });
   };
-  const toggleWheel = () => { if (wheelEl) closeWheel(); else openWheel(); };
+  const toggleWheel = () => { if (wheelEl) closeWheel(true); else openWheel(); };
   /* 滚轮切一格(官网 WHEEL_NOTCH 同款):只在轮盘或换装按钮上滚动时生效 */
   addEventListener('wheel', e => {
     if (!wheelEl || !(e.target.closest && e.target.closest('.pet-wheel, .pt-btn[data-act="dress"]'))) return;
@@ -1316,11 +1328,11 @@ async function boot() {
   /* ---------- 悬停按钮组(官网同款):鼠标停在她身上时出现在身侧,走动跟随 ----------
      换装(开衣柜) / 切换风格(站点双主题,走导航按钮的既有换肤路径) / 设置(LLM 提供商与 API Key)。
      指针离开 0.9s 收起;拖拽与衣柜开着时不出现;触屏点她一下显示 4s */
-  let toolsEl = null, settingsEl = null, typeEl = null, saidWrap = null, overTools = false, toolsUntil = 0, toolsOn = false;
+  let toolsEl = null, settingsEl = null, typeEl = null, saidWrap = null, overTools = false, toolsUntil = 0, toolsOn = false, toolsMuted = false;   // 官网 toolsMuted:面板关闭后按钮组躲避,指针离开宠物与面板再回来才解除
   let tapMark = null, touchCoolUntil = 0;   // 戳事件:轻点检测与模型回应冷却
   let openSettings = () => {}, openChat = () => {};
-  function closeSettings() { if (settingsEl) { settingsEl.hidden = true; settingsEl.classList.remove('open'); } }
-  function closeType() { if (typeEl) typeEl.hidden = true; }
+  function closeSettings() { if (settingsEl) { settingsEl.hidden = true; settingsEl.classList.remove('open'); } toolsMuted = true; toolsUntil = 0; }
+  function closeType() { if (typeEl) typeEl.hidden = true; toolsMuted = true; toolsUntil = 0; }
   function fadeSaid(el) { if (!el || el.classList.contains('fading')) return; el.classList.remove('entering'); el.classList.add('fading'); setTimeout(() => el.remove(), 450); }
   const placeTools = () => {
     const a = ctl.anchor(), w = toolsEl.offsetWidth, h = toolsEl.offsetHeight, b = bounds();
