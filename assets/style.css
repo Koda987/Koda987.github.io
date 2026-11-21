@@ -2559,7 +2559,7 @@ html[data-theme="bauhaus"] .pw-row button.on { border-color: #1a4fa0; color: #1a
 
 /* ---- 宠物悬停按钮组(官网同款:指针停在她身上时出现在身侧,走动跟随) ---- */
 /* ---- 宠物悬停按钮组(官网 pet-ui 同款:34px 圆钮 + 2px 线稿色描边,颜色随站点主题,hover 用当前配色的点缀色) ---- */
-.pet-tools { position: fixed; z-index: 92; display: grid; gap: 8px; grid-auto-flow: column; grid-template-rows: repeat(3, auto); pointer-events: none; transition: left .26s ease, top .26s ease; }
+.pet-tools { position: fixed; z-index: 92; display: grid; gap: 8px; grid-auto-flow: column; grid-template-rows: repeat(3, auto); pointer-events: none; }
 .pet-tools.on { pointer-events: auto; }
 .pet-tools.leaving { pointer-events: none; }
 .pt-btn { opacity: 0; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--pet-ink, #322f3d); background: var(--bg, #fff); box-shadow: 0 6px 16px rgba(0,0,0,.14); display: grid; place-items: center; cursor: pointer; color: var(--text, #1d1d1f); transition: color .15s, border-color .15s; padding: 0; }
