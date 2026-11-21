@@ -1638,10 +1638,10 @@ html:not([data-intro]) .brand-scroll { opacity: 0.85; }
     transition: box-shadow 0.35s ease;
 }
 
-/* 逐项巡讲的入场编排:一进屏先收进待场,随她的讲解逐项浮出 */
-html[data-theme="bauhaus"] .pet-item-wait {
-    opacity: 0 !important; transform: translateY(18px) scale(0.97);
-}
+/* 逐项巡讲的「隐藏待场→逐项浮出」编排已废除:旧缓存 JS 会给卡片挂 pet-item-wait,
+   而该类曾经 opacity:0 隐藏内容——小米等激进缓存浏览器拿到的旧 JS 无法远程更新,
+   卡片会永远卡在隐藏态(用户实测三次)。此规则中性化:该类不再有任何视觉效果,
+   旧代码加它等于没加;巡讲保留走到旁边说话的部分。.pet-item-in 保留为兼容类 */
 html[data-theme="bauhaus"] .pet-item-wait, html[data-theme="bauhaus"] .pet-item-in {
     transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
