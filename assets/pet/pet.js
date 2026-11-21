@@ -1341,6 +1341,8 @@ async function boot() {
     const left = x + 58 + w <= b.W - 8 ? x + 58 : x - 58 - w;   // 先放右侧,放不下放左侧
     toolsEl.style.left = `${Math.max(8, Math.min(left, b.W - w - 8))}px`;
     toolsEl.style.top = `${top}px`;
+    /* 官网 --dx:弹出/折回的方向 = 指向宠物身体(按钮组在右→折回向左,在左→向右) */
+    toolsEl.style.setProperty('--dx', left > x ? '-16px' : '16px');
   };
   /* 官网 popIn/popOut:entering 逐个弹入(0.6s 收尾),leaving 0.16s 折回,期间不接收点击 */
   const toolsAnim = { enter: 0, leave: 0 };

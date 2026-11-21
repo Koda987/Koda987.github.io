@@ -1622,6 +1622,12 @@ html:not([data-intro]) .brand-btn { opacity: 1; transform: none; }
 html:not([data-intro]) .brand-btn + .brand-btn { transition-delay: 0.09s; }
 html:not([data-intro]) .brand-btn:hover { transform: translateY(-1px); }
 /* 向下滚动提示(官网 hero-scroll) */
+/* 无限动画元素不参与跨页过渡捕获:infinite 动画会让 MPA View Transition
+   永不结束(新旧快照并排卡死=页面双份/宠物重影),必须排除出捕获 */
+.brand-scroll, .hero::before, .hero::after, .section.dark::before,
+.cursor-glow, .intro-caret, .status-pill.ok .dot, .f-status::before,
+.f-field.focus::after, .f-field.focus .caret { view-transition-name: none; }
+
 html[data-theme="bauhaus"] .brand-scroll {
     position: absolute; left: 50%; bottom: calc(14vh - 44px);
     transform: translateX(-50%);
@@ -2554,12 +2560,15 @@ html[data-theme="bauhaus"] .pw-row button.on { border-color: #1a4fa0; color: #1a
 /* ---- 宠物悬停按钮组(官网同款:指针停在她身上时出现在身侧,走动跟随) ---- */
 /* ---- 宠物悬停按钮组(官网 pet-ui 同款:34px 圆钮 + 2px 线稿色描边,颜色随站点主题,hover 用当前配色的点缀色) ---- */
 .pet-tools { position: fixed; z-index: 92; display: grid; gap: 8px; grid-auto-flow: column; grid-template-rows: repeat(3, auto); pointer-events: none; transition: left .26s ease, top .26s ease; }
-.pet-tools.on { pointer-events: auto; animation: ptBubbleIn .18s cubic-bezier(.3,1.5,.5,1); }
+.pet-tools.on { pointer-events: auto; }
 .pet-tools.leaving { pointer-events: none; }
 .pt-btn { opacity: 0; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--pet-ink, #322f3d); background: var(--bg, #fff); box-shadow: 0 6px 16px rgba(0,0,0,.14); display: grid; place-items: center; cursor: pointer; color: var(--text, #1d1d1f); transition: color .15s, border-color .15s; padding: 0; }
 .pet-tools.on .pt-btn { opacity: 1; }
-.pet-tools.entering .pt-btn { animation: ptIn .34s cubic-bezier(.3,1.5,.5,1) both; animation-delay: calc(var(--i) * 45ms); }
-.pet-tools.leaving .pt-btn { animation: ptOut .16s ease both; }
+.pet-tools.entering .pt-btn { animation: mIn .28s cubic-bezier(.3,1.5,.5,1) backwards; animation-delay: calc(var(--i) * 22ms); }
+.pet-tools.leaving .pt-btn { animation: mOut .16s ease-in forwards; }
+/* 官网 m-in/m-out:按钮从宠物身体侧弹出(--dx 由 pet.js 按钮组方位决定)/折回身体 */
+@keyframes mIn { from { transform: translateX(var(--dx, 0)) scale(.3); opacity: 0; } }
+@keyframes mOut { to { transform: translateX(var(--dx, 0)) scale(.4); opacity: 0; } }
 .pt-btn { position: relative; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--pet-ink, #322f3d); background: var(--bg, #fff); box-shadow: 0 6px 16px rgba(0,0,0,.14); display: grid; place-items: center; cursor: pointer; color: var(--text, #1d1d1f); transition: color .15s, border-color .15s; padding: 0; }
 .pt-btn:hover { color: var(--pet-accent, #4d6bfe); border-color: var(--pet-accent, #4d6bfe); }
 .pt-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; display: block; }
