@@ -1199,6 +1199,7 @@ async function boot() {
       const [curScheme, curOutfit] = (ctl.figure.scheme || savedDress).split('-');
       /* 配色按钮保留当前服装;服装按钮保留当前配色——两个维度互不重置 */
       const id = btn.dataset.outfit ? `${curScheme}-${btn.dataset.outfit}` : `${btn.dataset.dress}-${curOutfit}`;
+      restylePet();   // 等待动画先播,盖住加载/上传卡顿
       /* 官网同款:换配色 0.4s 交叉渐变(引擎 @mix 双贴图混合);换服装是换骨架,保持硬切 */
       ctl.figure.setScheme(id, btn.dataset.outfit ? undefined : { fade: .4 });
       applyAccent(ctl.figure);
@@ -1241,12 +1242,24 @@ async function boot() {
     wheelEl.style.left = `${Math.max(8, Math.min(Math.round(a.x - w / 2), pageW() - w - 8))}px`;
     wheelEl.style.top = `${Math.max(60, Math.round(a.y - h - 22))}px`;
   };
+  /* 官网 swap-motion.js restyle 同款:换装瞬间播 280ms「下蹲再起」(以脚为原点),
+     贴图加载与上传的卡顿被这段合成器驱动的动画盖住;reduced-motion 不播 */
+  const restylePet = () => {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const cv = document.querySelector('#pet-stage canvas');
+    cv?.animate([
+      { transform: 'scale(1)', transformOrigin: '50% 100%' },
+      { transform: 'scale(1.03, .96)', transformOrigin: '50% 100%', offset: .35 },
+      { transform: 'scale(1)', transformOrigin: '50% 100%' },
+    ], { duration: 280, easing: 'ease-out' });
+  };
   const wearWheel = look => {
     clearTimeout(wheelTimer); wheelTimer = 0;
     const cur = ctl.figure.scheme || savedDress;
     if (look === cur) return;
     const [nextS, nextO] = look.split('-');
     const [curS, curO] = cur.split('-');
+    restylePet();   // 等待动画:盖住贴图加载/上传的卡顿(官网 restyle 同款)
     /* 换配色保持官网的交叉渐变;换服装是换骨架,保持硬切 */
     ctl.figure.setScheme(look, nextO === curO ? { fade: .4 } : undefined);
     applyAccent(ctl.figure);
