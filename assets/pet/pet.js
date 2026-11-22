@@ -1271,11 +1271,11 @@ async function boot() {
       const id = btn.dataset.outfit ? `${curScheme}-${btn.dataset.outfit}` : `${btn.dataset.dress}-${curOutfit}`;
       savedDress = id;
       restylePet();   // 等待动画先播,盖住加载/上传卡顿
-      /* 官网换配色用 0.4s 交叉渐变(@mix 双贴图混合),但我们的贴图管线(IDB 位图 + 旧版
-         figure.js)在该路径上会出「部分部件不换/纯色矩形」——改硬切:apply 会把所有部件
-         重新上传,确定性干净;视觉过渡由上面的 restyle 下蹲动画盖住(换服装本就硬切) */
+      /* 官网同款:换配色 0.4s 交叉渐变(@mix 双贴图混合);换服装是换骨架,保持硬切。
+         此前渐变路径的渲染垃圾真凶是「超时误兜底换错贴图」与「上传突发静默丢贴图」,
+         已分别修掉(404-only 兜底 + 换装后 refresh 重传),渐变安全恢复 */
       const gen = dressingShow();
-      const p = ctl.figure.setScheme(id);
+      const p = ctl.figure.setScheme(id, btn.dataset.outfit ? undefined : { fade: .4 });
       p.then(() => { dressingEnd(gen); applyAccent(ctl.figure);
         setTimeout(() => ctl.figure.refresh?.(), 150); },   // 上传突发静默丢贴图的驱动自愈(重传全部部件)
              () => { dressingPendingSay = null; dressingEnd(gen); say('衣服还没拿到，再点一次试试。', { hold: 4000 }); });
@@ -1333,11 +1333,12 @@ async function boot() {
     clearTimeout(wheelTimer); wheelTimer = 0;
     if (look === savedDress) return;   // 已是最后一次请求:防抖(不读异步生效的 figure.scheme)
     const [nextS, nextO] = look.split('-');
+    const [, curO] = savedDress.split('-');
     savedDress = look;
     restylePet();   // 等待动画:盖住贴图加载/上传的卡顿(官网 restyle 同款)
-    /* 硬切(同衣柜路径:渐变路径在我们的贴图管线上有渲染垃圾,restyle 动画盖住切换) */
+    /* 官网同款:同服装换配色走 0.4s 交叉渐变;换服装是换骨架,硬切(渐变垃圾的真凶已修) */
     const gen = dressingShow();
-    const p = ctl.figure.setScheme(look);
+    const p = ctl.figure.setScheme(look, nextO === curO ? { fade: .4 } : undefined);
     p.then(() => { dressingEnd(gen); applyAccent(ctl.figure);
       setTimeout(() => ctl.figure.refresh?.(), 150); },     // 上传突发静默丢贴图的驱动自愈(重传全部部件)
            () => { dressingPendingSay = null; dressingEnd(gen); say('衣服还没拿到，再点一次试试。', { hold: 4000 }); });
