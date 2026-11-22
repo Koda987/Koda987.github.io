@@ -386,18 +386,22 @@ async function boot() {
     dressingEl.style.top = `${Math.round(Math.max(76, a.y - h - 16))}px`;
     dressingEl.style.setProperty('--tail', `${Math.max(22, Math.min(a.x - left, w - 22))}px`);
   };
-  let dressingGen = 0, dressingOn = false, dressingPendingSay = null, dressingDemoRestart = false;
-  const dressingShow = () => {     // setStatus('wait', …):pop 入场动画每次重放(官网每次新建元素)
+  let dressingGen = 0, dressingOn = false, dressingPendingSay = null, dressingDemoRestart = false, dressingFromRestore = false;
+  const dressingShow = fromRestore => {   // fromRestore:上下文恢复的重传(不是用户换装,不动演示屏)
     const gen = ++dressingGen;
+    dressingFromRestore = !!fromRestore;
     /* 官网 dress.js onFigure 同款:「loading」先关掉在播的台词,状态胶囊顶上它的位置 */
     sayToken++; voice.stop();
     bubbleEl.hidden = true; bubbleEl.classList.remove('pop', 'out');
-    /* 功能演示屏的演出也一并叫停(用户要求):只掐断不清屏,换装结束后从头重演 */
-    try {
-      if (featMode || (featSection && featSection.classList.contains('live') && !featDone)) {
-        featTok++; featMode = null; dressingDemoRestart = true;
-      }
-    } catch { /* 演示屏不存在(子页) */ }
+    /* 功能演示屏的演出也一并叫停(用户要求):只掐断不清屏,换装结束后从头重演。
+       上下文恢复的重传除外——那不是换装,叫停它会让演示屏被恢复事件反复掐断、永远演不完 */
+    if (!fromRestore) {
+      try {
+        if (featMode || (featSection && featSection.classList.contains('live') && !featDone)) {
+          featTok++; featMode = null; dressingDemoRestart = true;
+        }
+      } catch { /* 演示屏不存在(子页) */ }
+    }
     dressingOn = true;
     dressingEl.classList.remove('pop');
     void dressingEl.offsetWidth;             // 重排:让 pop 入场动画每次都重放
@@ -408,6 +412,7 @@ async function boot() {
   const dressingEnd = gen => {     // setStatus(null):立即移除,无退场动画(官网同款)
     if (gen !== dressingGen) return;         // 已有更新的换装请求:旧请求的结束不作数(官网 ticket 同款)
     dressingOn = false;
+    dressingFromRestore = false;
     dressingEl.hidden = true;
     dressingEl.classList.remove('pop');
     /* 换装期间被叫停的演示屏:换完从头重演(用户要求)。用 setTimeout 而不是帧循环:
@@ -438,8 +443,9 @@ async function boot() {
   let sayToken = 0;
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   async function say(text, opts = {}) {
-    /* 换装加载中一律静默(用户要求):不打字、不配音,台词记下来,换装结束补播最新的那句 */
-    if (dressingOn) { dressingPendingSay = { text, opts }; return; }
+    /* 换装加载中一律静默(用户要求):不打字、不配音,台词记下来,换装结束补播最新的那句。
+       上下文恢复的重传不算换装:演示屏照常说话,无缝播过恢复窗口 */
+    if (dressingOn && !dressingFromRestore) { dressingPendingSay = { text, opts }; return; }
     const tok = ++sayToken;                  // 新台词随时可以顶掉旧的
     bubbleEl.hidden = false;
     bubbleEl.classList.remove('out', 'ask', 'pop');
@@ -1207,7 +1213,7 @@ async function boot() {
      兜底:监听恢复事件(webglcontext* 不冒泡,捕获阶段在舞台上接),稍候把当前装扮整套重传,免刷新自愈 */
   stage.addEventListener('webglcontextrestored', () => {
     setTimeout(() => {
-      const gen = dressingShow();   // 整套装扮重传也是一次真实加载:官网语义,loading 即亮胶囊
+      const gen = dressingShow(true);   // 整套装扮重传也是一次真实加载:亮胶囊,但不惊动演示屏
       try { ctl.figure.setScheme(ctl.figure.scheme).then(() => dressingEnd(gen), () => dressingEnd(gen)); }
       catch { dressingEnd(gen); /* 失败就等下次换装自然重传 */ }
     }, 200);
