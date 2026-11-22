@@ -866,6 +866,9 @@ export async function createWhaleFigure(base = new URL('./', import.meta.url), o
     },
     /** Loads every scheme's and outfit's textures, so later switches are immediate. */
     preload: () => Promise.all(SCHEMES.flatMap(sc => OUTFITS.map(of => loadScheme(sc.id, of.id)))),
+    /** Re-uploads every part texture from its source. 个别驱动在换装的上传突发里会静默丢掉
+        几张(部件变成透明/残留旧图),换装完成后由集成层调一次,把全部贴图重传一遍自愈。 */
+    refresh: () => { if (rig) for (const n in tex) rig.upload(n, tex[n]); },
     get scheme() { return `${scheme}-${outfit}`; },
     /** Raster mode: a promise that settles once the last drawn frame is ready to be painted. */
     get painted() { return decoded || Promise.resolve(); },

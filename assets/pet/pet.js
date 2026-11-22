@@ -15,7 +15,7 @@ import { createPet } from './vendor/kit/body.js';
 window.addEventListener('error', e => { (window.__petErrs = window.__petErrs || []).push(e.message + ' @' + e.lineno); });
 window.addEventListener('unhandledrejection', e => { (window.__petErrs = window.__petErrs || []).push('REJ: ' + ((e.reason && e.reason.message) || e.reason)); });
 
-import { createWhaleFigure } from './vendor/whale/figure.js?v=20261107-262';
+import { createWhaleFigure } from './vendor/whale/figure.js?v=20261107-267';
 import { createVoice, textSteps, STEP_MS } from './voice.js';
 
 /* ---------- 资源接续缓存(IndexedDB) ----------
@@ -166,37 +166,6 @@ const fit = () => {
 };
 if (stage) fit();
 
-const TRANSPARENT = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
-/* 官网换装系统:贴图兜底加载器——非 deepseek 配色缺 skirt_shadow 等个别贴图(上游如此),
-   404 时回退到 deepseek 的同名贴图;连兜底都没有就给透明像素,绝不让整套配色加载失败 */
-const petImgLoad = url => new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = bad; im.src = url; });
-const decodeImg = img => {
-  if (!img.decode) return Promise.resolve(img);
-  /* decode():img.onload 只代表字节到位,像素可能还没解完;引擎紧接着 texImage2D 上传,
-     没解完的像素会被传成显存垃圾(整只蓝色积木块,线上站 vs 本地的经典差异——远端 53 张
-     贴图并行解码时 decode 排队,本地快到看不出)。decode() 对游离于 DOM 之外的图片还可能
-     极慢甚至永不落定(个别 Chromium):挂进屏外隐藏容器再解,基本秒解;超时只是最后保险 */
-  const holder = decodeImg.d ??= Object.assign(document.createElement('div'),
-    { style: 'position:fixed;left:-9999px;top:0;width:1px;height:1px;overflow:hidden;pointer-events:none' });
-  if (!holder.isConnected) (document.body || document.documentElement).appendChild(holder);
-  holder.appendChild(img);
-  return Promise.race([img.decode().catch(() => {}), new Promise(r => setTimeout(r, 5000))])
-    .then(() => { if (img.parentNode === holder) holder.removeChild(img); return img; });
-};
-/* 本地服务器/连接偶发卡住时,图片 onload 可能迟迟不来:4 秒没动静就换一个全新请求重试一次 */
-const petImgLoadRetry = url => new Promise((ok, bad) => {
-  const im = new Image();
-  window.__lp = window.__lp || { set: 0, ok: 0, err: 0, to: 0, last: '' };
-  window.__lp.set++; window.__lp.last = url.split('/').slice(-2).join('/');
-  const timer = setTimeout(() => { im.onload = im.onerror = null; window.__lp.to++; bad(); }, 4000);
-  im.onload = () => { clearTimeout(timer); window.__lp.ok++;
-    /* 慢网时本路径是主力(loadBitmap 8s 超时会打到这):onload ≠ 解码完,不等 decode 就
-       texImage2D 正是「蓝色积木块」的根源——这里等 decode 落定再交付 */
-    (im.decode ? im.decode().catch(() => {}) : Promise.resolve()).then(() => ok(im)); };
-  im.onerror = () => { clearTimeout(timer); window.__lp.err++; bad(); };
-  im.src = url;
-  if (im.complete) window.__lp.cached = (window.__lp.cached || 0) + 1;
-});
 /* 贴图加载:fetch→blob→createImageBitmap——位图本身就是解码完成的像素,从根上消灭
    "HTMLImageElement 解码时序(排队超时/永不落定)→texImage2D 传未解完像素→蓝色积木块"
    这一整类 bug(线上远端加载时必现,本地快到看不出)。顺带:fetch 走本模块顶部的
@@ -206,7 +175,7 @@ const loadBitmap = async url => {
   for (let i = 0; i < 2; i++) {
     try {
       texProg.set++;
-      const c = new AbortController(); const timer = setTimeout(() => c.abort(), 8000);
+      const c = new AbortController(); const timer = setTimeout(() => c.abort(), 20000);   // 慢网也要完整文件:20s 才算挂起
       const r = await fetch(url, { signal: c.signal }).finally(() => clearTimeout(timer));
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const blob = await r.blob();
@@ -219,12 +188,16 @@ const loadBitmap = async url => {
 };
 const petLoadImage = async u => {
   const url = String(u);                                 // figure.js 传入的是 URL 对象,先转字符串
-  try { return await loadBitmap(url); } catch { /* 404/网络:走回退 */ }
+  try { return await loadBitmap(url); }
+  catch (e) {
+    /* 只有「文件真不存在」(404)才走原版兜底;慢网超时/网络错必须让整个换装失败重试——
+       否则缺的那个部件会被悄悄换成原版配色,出现「换装后有一部分没换」(harness 蓝呆毛的根源) */
+    if (!/HTTP 404/.test(String((e && e.message) || e))) throw e;
+  }
   /* schemes/<id>/tex|x/xx.png → 原版(deepseek)同路径(配色缺图时的兜底) */
   const m = url.match(/\/schemes\/[^/]+\/((?:tex|feat)\/.+)$/);
-  try { if (m) return await loadBitmap(new URL('vendor/whale/' + m[1], PET_BASE).href); } catch {}
-  try { return await loadBitmap(TRANSPARENT); } catch { /* 连透明位图都不行:退回旧 Image 路径保底 */ }
-  return petImgLoadRetry(TRANSPARENT).then(decodeImg);
+  if (m) return loadBitmap(new URL('vendor/whale/' + m[1], PET_BASE).href);
+  throw new Error('HTTP 404: ' + url);                   // 原版也没有:让换装失败重试,绝不画半个残缺的她
 };
 const DRESS_KEY = 'koda.pet.dress';
 /* 按钮 hover 的点缀色跟随当前配色(官网同款:用的就是宠物的眼睛色) */
@@ -1267,11 +1240,13 @@ async function boot() {
       const id = btn.dataset.outfit ? `${curScheme}-${btn.dataset.outfit}` : `${btn.dataset.dress}-${curOutfit}`;
       savedDress = id;
       restylePet();   // 等待动画先播,盖住加载/上传卡顿
-      /* 官网同款:换配色 0.4s 交叉渐变(引擎 @mix 双贴图混合);换服装是换骨架,保持硬切。
-         loading 即亮「正在换衣服…」;完成即收,失败说官网同句的「衣服还没拿到」 */
+      /* 官网换配色用 0.4s 交叉渐变(@mix 双贴图混合),但我们的贴图管线(IDB 位图 + 旧版
+         figure.js)在该路径上会出「部分部件不换/纯色矩形」——改硬切:apply 会把所有部件
+         重新上传,确定性干净;视觉过渡由上面的 restyle 下蹲动画盖住(换服装本就硬切) */
       const gen = dressingShow();
-      const p = ctl.figure.setScheme(id, btn.dataset.outfit ? undefined : { fade: .4 });
-      p.then(() => { dressingEnd(gen); applyAccent(ctl.figure); },
+      const p = ctl.figure.setScheme(id);
+      p.then(() => { dressingEnd(gen); applyAccent(ctl.figure);
+        setTimeout(() => ctl.figure.refresh?.(), 150); },   // 上传突发静默丢贴图的驱动自愈(重传全部部件)
              () => { dressingPendingSay = null; dressingEnd(gen); say('衣服还没拿到，再点一次试试。', { hold: 4000 }); });
       try { localStorage.setItem(DRESS_KEY, id); } catch {}
       const [curS, curO] = id.split('-');
@@ -1327,13 +1302,13 @@ async function boot() {
     clearTimeout(wheelTimer); wheelTimer = 0;
     if (look === savedDress) return;   // 已是最后一次请求:防抖(不读异步生效的 figure.scheme)
     const [nextS, nextO] = look.split('-');
-    const [, curO] = savedDress.split('-');
     savedDress = look;
     restylePet();   // 等待动画:盖住贴图加载/上传的卡顿(官网 restyle 同款)
-    /* 换配色保持官网的交叉渐变;换服装是换骨架,保持硬切。loading/ready 状态与衣柜路径同款 */
+    /* 硬切(同衣柜路径:渐变路径在我们的贴图管线上有渲染垃圾,restyle 动画盖住切换) */
     const gen = dressingShow();
-    const p = ctl.figure.setScheme(look, nextO === curO ? { fade: .4 } : undefined);
-    p.then(() => { dressingEnd(gen); applyAccent(ctl.figure); },
+    const p = ctl.figure.setScheme(look);
+    p.then(() => { dressingEnd(gen); applyAccent(ctl.figure);
+      setTimeout(() => ctl.figure.refresh?.(), 150); },     // 上传突发静默丢贴图的驱动自愈(重传全部部件)
            () => { dressingPendingSay = null; dressingEnd(gen); say('衣服还没拿到，再点一次试试。', { hold: 4000 }); });
     try { localStorage.setItem(DRESS_KEY, look); } catch {}
     if (wardrobe) wardrobe.querySelectorAll('[data-dress]').forEach(b => b.classList.toggle('on',
