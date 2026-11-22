@@ -1327,6 +1327,9 @@ html.pet-grab, html.pet-grab * {
     padding: 6px 10px; font-size: 12.5px; line-height: 1.4;
     user-select: none; transition: opacity .2s;
 }
+/* display:flex 会压过 [hidden] 的 UA display:none——不补这条,胶囊从页面加载起就一直
+   显形在左上角(static 定位),换完装也永远缩回不去 */
+.pet-dressing[hidden] { display: none; }
 .pet-dressing::before, .pet-dressing::after {
     content: ""; position: absolute; left: calc(var(--tail, 50%) - 13.5px); bottom: -11px;
     width: 22px; height: 11.5px; transform: none; border: 0;
