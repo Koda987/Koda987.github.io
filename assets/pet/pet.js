@@ -431,7 +431,8 @@ async function boot() {
   };
   const dressingFrame = () => {    // 官网 placeBubbles 同款:每帧跟随头部;对话在播即让位,结束自动回来
     if (!dressingOn) return;
-    dressingEl.hidden = !bubbleEl.hidden;    // 官网 status.hidden = !!main:对话优先
+    /* 官网 status.hidden = !!main:对话优先。对白不止 bubbleEl 一个(said 药丸也是 .pet-bubble 家族),一律让位 */
+    dressingEl.hidden = !bubbleEl.hidden || [...document.querySelectorAll('.pet-bubble:not(.pet-dressing)')].some(b => !b.hidden);
     if (!dressingEl.hidden) placeDressing();
   };
 

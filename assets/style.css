@@ -1334,7 +1334,9 @@ html.pet-grab, html.pet-grab * {
 .pet-dressing::before { background: var(--pet-ink, #322f3d); clip-path: path('M0.75 1.25 L8.9 9.4 Q11 11.5 13.1 9.4 L21.25 1.25 Z'); }
 .pet-dressing::after { background: rgba(255,255,255,0.98); clip-path: path('M3.04 0 L10.53 7.49 Q11 7.96 11.47 7.49 L18.96 0 Z'); }
 .pet-dressing .status-icon { display: flex; flex: none; color: color-mix(in srgb, var(--pet-accent, #4d6bfe) 78%, var(--pet-ink, #322f3d)); }
-.pet-dressing .status-icon svg { width: 14px; height: 14px; overflow: visible; }
+/* 站点全局规则 #pet-stage svg { position:absolute; inset:0 } 是给舞台本体 SVG 的(ID 特异性
+   压过类选择器,会把胶囊图标拉到胶囊左上角原点)——这里同样用 ID 前缀压回去,恢复文档流 */
+#pet-stage .pet-dressing .status-icon svg { position: static; inset: auto; width: 14px; height: 14px; overflow: visible; }
 .pet-dressing .status-icon svg, .pet-dressing .status-icon svg * { transform-box: fill-box; transform-origin: center; }
 .pet-dressing .status-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pet-dressing.pop { animation: petStatusIn .24s cubic-bezier(.3, 1.4, .5, 1); }   /* 官网 status-in,盖过气泡的 pop */
