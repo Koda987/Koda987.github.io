@@ -386,12 +386,18 @@ async function boot() {
     dressingEl.style.top = `${Math.round(Math.max(76, a.y - h - 16))}px`;
     dressingEl.style.setProperty('--tail', `${Math.max(22, Math.min(a.x - left, w - 22))}px`);
   };
-  let dressingGen = 0, dressingOn = false, dressingPendingSay = null;
+  let dressingGen = 0, dressingOn = false, dressingPendingSay = null, dressingDemoRestart = false;
   const dressingShow = () => {     // setStatus('wait', …):pop 入场动画每次重放(官网每次新建元素)
     const gen = ++dressingGen;
     /* 官网 dress.js onFigure 同款:「loading」先关掉在播的台词,状态胶囊顶上它的位置 */
     sayToken++; voice.stop();
     bubbleEl.hidden = true; bubbleEl.classList.remove('pop', 'out');
+    /* 功能演示屏的演出也一并叫停(用户要求):只掐断不清屏,换装结束后从头重演 */
+    try {
+      if (featMode || (featSection && featSection.classList.contains('live') && !featDone)) {
+        featTok++; featMode = null; dressingDemoRestart = true;
+      }
+    } catch { /* 演示屏不存在(子页) */ }
     dressingOn = true;
     dressingEl.classList.remove('pop');
     void dressingEl.offsetWidth;             // 重排:让 pop 入场动画每次都重放
@@ -404,8 +410,19 @@ async function boot() {
     dressingOn = false;
     dressingEl.hidden = true;
     dressingEl.classList.remove('pop');
-    /* 换装期间被静默的台词:换完补播最新那句(用户要求:结束后继续重新播放对白) */
-    if (dressingPendingSay) {
+    /* 换装期间被叫停的演示屏:换完从头重演(用户要求)。用 setTimeout 而不是帧循环:
+       手机后台/换装重载卡顿时 rAF 会停摆,定时器照样兑现;条件没赶上就再试几次 */
+    if (dressingDemoRestart) {
+      dressingDemoRestart = false;
+      const fireRestart = attempt => {
+        setTimeout(() => {
+          if (!dressingOn && !featDone && featSection && featSection.classList.contains('live')) {
+            start(tk => tour(0, tk));
+          } else if (attempt < 3) fireRestart(attempt + 1);
+        }, attempt === 0 ? 700 : 1200);
+      };
+      fireRestart(0);
+    } else if (dressingPendingSay) {
       const pend = dressingPendingSay;
       dressingPendingSay = null;
       say(pend.text, pend.opts);
@@ -958,7 +975,7 @@ async function boot() {
       featMode = null;
       await wrapUp(tok, 'replay');
     }
-    const start = run => { const tk = ++featTok; run(tk).catch(() => {}); };
+    const start = run => { const tk = ++featTok; run(tk).catch(e => console.error('演示屏演出中断:', e)); };
     const shutUp = () => { sayToken++; clearTimeout(askTimer); bubbleEl.hidden = true; bubbleEl.classList.remove('pop'); };
     $f('.feat-skip').addEventListener('click', () => {
       if (!featMode) return;
