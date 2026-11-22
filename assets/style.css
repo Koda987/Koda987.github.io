@@ -1317,18 +1317,30 @@ html.pet-grab, html.pet-grab * {
     transform: rotate(45deg);
 }
 
-/* 「正在换衣服…」等待胶囊(官网 status 同款):白底圆胶囊 + 沙漏漏斗图标,尾巴居中指向宠物;
-   pet.js 控制 150ms 延迟亮出与完成收起,这里只管长相与官方同款的翻转动画 */
+/* 「正在换衣服…」状态胶囊(官网 pet-ui .bubble.status 全套同款):
+   小号白胶囊、图标 78% 眼睛色混墨、沙漏做 status-wait 翻转;pop 入场用官网 status-in,
+   尾巴换成官网同款描边三角(::before 墨色三角撑轮廓,::after 表面色撑内里,均不旋转) */
 .pet-dressing {
     display: flex; align-items: center; gap: 6px;
+    max-width: min(220px, calc(100vw - 20px));
     min-width: 0; min-height: 0;
-    padding: 6px 10px; border-radius: 999px;
-    font-size: 12.5px;
+    padding: 6px 10px; font-size: 12.5px; line-height: 1.4;
+    user-select: none; transition: opacity .2s;
 }
-.pet-dressing::after { left: calc(50% - 6px); }   /* 尾巴对准胶囊中点(即宠物头顶) */
-.pet-dressing .pd-ico { width: 14px; height: 14px; flex: none; color: var(--pet-accent, #4d6bfe); transform-box: fill-box; transform-origin: center; }
-.pet-dressing.pop .pd-ico { animation: pdWait 2.8s ease-in-out infinite; }   /* 官网 status-wait 同款:停一拍,翻 180° */
-@keyframes pdWait { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(180deg); } }
+.pet-dressing::before, .pet-dressing::after {
+    content: ""; position: absolute; left: calc(var(--tail, 50%) - 13.5px); bottom: -11px;
+    width: 22px; height: 11.5px; transform: none; border: 0;
+}
+.pet-dressing::before { background: var(--pet-ink, #322f3d); clip-path: path('M0.75 1.25 L8.9 9.4 Q11 11.5 13.1 9.4 L21.25 1.25 Z'); }
+.pet-dressing::after { background: rgba(255,255,255,0.98); clip-path: path('M3.04 0 L10.53 7.49 Q11 7.96 11.47 7.49 L18.96 0 Z'); }
+.pet-dressing .status-icon { display: flex; flex: none; color: color-mix(in srgb, var(--pet-accent, #4d6bfe) 78%, var(--pet-ink, #322f3d)); }
+.pet-dressing .status-icon svg { width: 14px; height: 14px; overflow: visible; }
+.pet-dressing .status-icon svg, .pet-dressing .status-icon svg * { transform-box: fill-box; transform-origin: center; }
+.pet-dressing .status-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pet-dressing.pop { animation: petStatusIn .24s cubic-bezier(.3, 1.4, .5, 1); }   /* 官网 status-in,盖过气泡的 pop */
+@keyframes petStatusIn { from { transform: translateY(3px) scale(.92); opacity: 0; } }
+.pet-dressing[data-kind="wait"] .status-icon svg { animation: petStatusWait 2.8s ease-in-out infinite; }   /* 官网 status-wait 同款 */
+@keyframes petStatusWait { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(180deg); } }
 
 /* ============================================================
    网页风格切换：包豪斯风（html[data-theme="bauhaus"]）
