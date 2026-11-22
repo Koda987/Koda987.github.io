@@ -1317,6 +1317,19 @@ html.pet-grab, html.pet-grab * {
     transform: rotate(45deg);
 }
 
+/* 「正在换衣服…」等待胶囊(官网 status 同款):白底圆胶囊 + 沙漏漏斗图标,尾巴居中指向宠物;
+   pet.js 控制 150ms 延迟亮出与完成收起,这里只管长相与官方同款的翻转动画 */
+.pet-dressing {
+    display: flex; align-items: center; gap: 6px;
+    min-width: 0; min-height: 0;
+    padding: 6px 10px; border-radius: 999px;
+    font-size: 12.5px;
+}
+.pet-dressing::after { left: calc(50% - 6px); }   /* 尾巴对准胶囊中点(即宠物头顶) */
+.pet-dressing .pd-ico { width: 14px; height: 14px; flex: none; color: var(--pet-accent, #4d6bfe); transform-box: fill-box; transform-origin: center; }
+.pet-dressing.pop .pd-ico { animation: pdWait 2.8s ease-in-out infinite; }   /* 官网 status-wait 同款:停一拍,翻 180° */
+@keyframes pdWait { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(180deg); } }
+
 /* ============================================================
    网页风格切换：包豪斯风（html[data-theme="bauhaus"]）
    形式追随功能——纸底 #f2efe9 + 墨黑 #111 + 三原色红 #1a4fa0 / 蓝 #1a4fa0 / 黄 #f2c500,

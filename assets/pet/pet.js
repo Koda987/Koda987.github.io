@@ -391,6 +391,51 @@ async function boot() {
     bubbleEl.style.setProperty('--tail', `${Math.round(Math.max(18, Math.min(a.x - left, w - 18)))}px`);
   }
 
+  /* ---------- 「正在换衣服…」等待胶囊(官网换装提示同款):换装请求发出即待命,贴图加载
+     超过 150ms 才亮出(缓存命中的瞬时换装不闪),应用完成即收起;连点时新一代请求作废旧一代 ---------- */
+  const dressingEl = document.createElement('div');
+  dressingEl.className = 'pet-bubble pet-dressing';
+  dressingEl.hidden = true;
+  dressingEl.setAttribute('aria-hidden', 'true');
+  dressingEl.innerHTML = '<svg class="pd-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + '<path d="M5 3h14M5 21h14M7 3v4l10 10v4M17 3v4L7 17v4M9 6h6M9 19h6"/></svg>'
+    + '<span>正在换衣服…</span>';
+  stage.appendChild(dressingEl);
+  const placeDressing = () => {
+    if (dressingEl.hidden) return;
+    const a = ctl.anchor(), w = dressingEl.offsetWidth, h = dressingEl.offsetHeight;
+    let top = a.y - h - 14;
+    if (wheelEl && !wheelEl.hidden) top = Math.min(top, wheelEl.offsetTop - h - 8);   // 手机轮盘亮着:胶囊让到轮盘上方
+    dressingEl.style.left = `${Math.max(8, Math.min(Math.round(a.x - w / 2), pageW() - w - 8))}px`;
+    dressingEl.style.top = `${Math.max(60, Math.round(top))}px`;
+  };
+  let dressingGen = 0, dressingTimer = 0;
+  const dressingBegin = () => {
+    const gen = ++dressingGen;
+    clearTimeout(dressingTimer);
+    dressingTimer = setTimeout(() => {
+      if (gen !== dressingGen) return;
+      if (!dressingEl.hidden) { placeDressing(); return; }   // 连点:胶囊已亮着,跟着宠物挪一下即可
+      /* 让位:台词气泡(含正在打的那句)立即收掉,别和等待胶囊叠在一起 */
+      sayToken++; voice.stop();
+      bubbleEl.hidden = true; bubbleEl.classList.remove('pop', 'out');
+      dressingEl.hidden = false;
+      dressingEl.classList.remove('out');
+      void dressingEl.offsetWidth;             // 重排:让 pop 弹出动画每次都重放
+      dressingEl.classList.add('pop');
+      placeDressing();
+    }, 150);
+    return gen;
+  };
+  const dressingEnd = gen => {
+    if (gen !== dressingGen) return;           // 已有更新的换装请求:旧一代的收起不作数
+    clearTimeout(dressingTimer);
+    if (dressingEl.hidden) return;
+    dressingEl.classList.add('out');
+    dressingEl.classList.remove('pop');
+    setTimeout(() => { if (gen === dressingGen) dressingEl.hidden = true; }, 220);
+  };
+
   let sayToken = 0;
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   async function say(text, opts = {}) {
@@ -1207,8 +1252,9 @@ async function boot() {
       savedDress = id;
       restylePet();   // 等待动画先播,盖住加载/上传卡顿
       /* 官网同款:换配色 0.4s 交叉渐变(引擎 @mix 双贴图混合);换服装是换骨架,保持硬切 */
+      const gen = dressingBegin();   // 「正在换衣服…」等待胶囊:加载超 150ms 才亮,完成即收
       const p = ctl.figure.setScheme(id, btn.dataset.outfit ? undefined : { fade: .4 });
-      p.then(() => applyAccent(ctl.figure));   // accent 随加载完成再刷新,否则读到旧配色
+      p.then(() => { dressingEnd(gen); applyAccent(ctl.figure); }, () => dressingEnd(gen));
       try { localStorage.setItem(DRESS_KEY, id); } catch {}
       const [curS, curO] = id.split('-');
       wardrobe.querySelectorAll('[data-dress]').forEach(b => b.classList.toggle('on',
@@ -1267,8 +1313,9 @@ async function boot() {
     savedDress = look;
     restylePet();   // 等待动画:盖住贴图加载/上传的卡顿(官网 restyle 同款)
     /* 换配色保持官网的交叉渐变;换服装是换骨架,保持硬切 */
+    const gen = dressingBegin();   // 「正在换衣服…」等待胶囊:加载超 150ms 才亮,完成即收
     const p = ctl.figure.setScheme(look, nextO === curO ? { fade: .4 } : undefined);
-    p.then(() => applyAccent(ctl.figure));   // accent 随加载完成再刷新,否则读到旧配色
+    p.then(() => { dressingEnd(gen); applyAccent(ctl.figure); }, () => dressingEnd(gen));
     try { localStorage.setItem(DRESS_KEY, look); } catch {}
     if (wardrobe) wardrobe.querySelectorAll('[data-dress]').forEach(b => b.classList.toggle('on',
       b.dataset.outfit ? b.dataset.outfit === nextO : b.dataset.dress === nextS));
