@@ -78,7 +78,7 @@ function loadImage(url) {
  * from the package) the package's own kit/rig.js does. A pack installed elsewhere has no ../kit/.
  */
 export async function createWhaleFigure(base = new URL('./', import.meta.url), opts = {}) {
-  const createRig = opts.kit?.createRig ?? (await import('../kit/rig.js')).createRig;
+  const createRig = opts.kit?.createRig ?? (await import('../kit/rig.js?v=20261107-269')).createRig;
   const model = opts.model || await (await fetch(new URL('model.json', base))).json();
   const asset = opts.asset || (p => new URL(p, base));
   const load = opts.loadImage || loadImage;

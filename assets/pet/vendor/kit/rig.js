@@ -134,7 +134,13 @@ export function createRig(canvas, model) {
   // restores it, and it stays blank for good. On restoration every GL resource must be rebuilt
   // and the textures uploaded again from their sources.
   let lost = false;
-  canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); lost = true; });
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault(); lost = true;
+    /* 只 preventDefault 的话浏览器不一定自发恢复(手机后台切回/多标签 GPU 压力时尤其),
+       画布会永远空白——趁 gl 还查得到扩展,主动催一次 restoreContext */
+    const lc = gl.getExtension('WEBGL_lose_context');
+    if (lc) setTimeout(() => lc.restoreContext(), 400);
+  });
   canvas.addEventListener('webglcontextrestored', () => {
     // dispose() during a loss cannot reach WEBGL_lose_context, so the browser may still restore a disposed rig
     if (disposed) return;
