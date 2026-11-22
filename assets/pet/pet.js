@@ -421,8 +421,8 @@ async function boot() {
       dressingDemoRestart = false;
       const fireRestart = attempt => {
         setTimeout(() => {
-          if (!dressingOn && !featDone && featSection && featSection.classList.contains('live')) {
-            start(tk => tour(0, tk));
+          if (!dressingOn && !featDone && featSection && featSection.classList.contains('live') && featRestartFromStart) {
+            featRestartFromStart();
           } else if (attempt < 3) fireRestart(attempt + 1);
         }, attempt === 0 ? 700 : 1200);
       };
@@ -801,6 +801,7 @@ async function boot() {
      Skip:正剧跳到下一幕;重播态跳回总结。数字按钮:播完后可单独重演某一幕。 */
   const featSection = document.getElementById('boards');
   let featTok = 0, featNext = 0, featCur = 0, featDone = false, featMode = null, featEnter = null;
+  let featRestartFromStart = null;   // 换装联动用:由演示屏块内赋值(块外的换装代码看不见块内的 start/tour)
   if (featSection) {
     const FEATS = [
       { title: 'Koda · 2027 届',
@@ -982,6 +983,13 @@ async function boot() {
       await wrapUp(tok, 'replay');
     }
     const start = run => { const tk = ++featTok; run(tk).catch(e => console.error('演示屏演出中断:', e)); };
+    /* 换装联动的「从头重演」入口:换装代码(dressingEnd)在块外看不见 start/tour,借它调用 */
+    featRestartFromStart = () => {
+      featTok++; shutUp();
+      featNext = 0; featCur = 0; featDone = false;
+      endDemo(); showSummary(false);
+      start(tk => tour(0, tk));
+    };
     const shutUp = () => { sayToken++; clearTimeout(askTimer); bubbleEl.hidden = true; bubbleEl.classList.remove('pop'); };
     $f('.feat-skip').addEventListener('click', () => {
       if (!featMode) return;
