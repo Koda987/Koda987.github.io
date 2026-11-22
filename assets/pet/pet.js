@@ -189,7 +189,10 @@ const petImgLoadRetry = url => new Promise((ok, bad) => {
   window.__lp = window.__lp || { set: 0, ok: 0, err: 0, to: 0, last: '' };
   window.__lp.set++; window.__lp.last = url.split('/').slice(-2).join('/');
   const timer = setTimeout(() => { im.onload = im.onerror = null; window.__lp.to++; bad(); }, 4000);
-  im.onload = () => { clearTimeout(timer); window.__lp.ok++; ok(im); };
+  im.onload = () => { clearTimeout(timer); window.__lp.ok++;
+    /* 慢网时本路径是主力(loadBitmap 8s 超时会打到这):onload ≠ 解码完,不等 decode 就
+       texImage2D 正是「蓝色积木块」的根源——这里等 decode 落定再交付 */
+    (im.decode ? im.decode().catch(() => {}) : Promise.resolve()).then(() => ok(im)); };
   im.onerror = () => { clearTimeout(timer); window.__lp.err++; bad(); };
   im.src = url;
   if (im.complete) window.__lp.cached = (window.__lp.cached || 0) + 1;
@@ -410,7 +413,7 @@ async function boot() {
     dressingEl.style.top = `${Math.round(Math.max(76, a.y - h - 16))}px`;
     dressingEl.style.setProperty('--tail', `${Math.max(22, Math.min(a.x - left, w - 22))}px`);
   };
-  let dressingGen = 0, dressingOn = false;
+  let dressingGen = 0, dressingOn = false, dressingPendingSay = null;
   const dressingShow = () => {     // setStatus('wait', …):pop 入场动画每次重放(官网每次新建元素)
     const gen = ++dressingGen;
     /* 官网 dress.js onFigure 同款:「loading」先关掉在播的台词,状态胶囊顶上它的位置 */
@@ -428,6 +431,12 @@ async function boot() {
     dressingOn = false;
     dressingEl.hidden = true;
     dressingEl.classList.remove('pop');
+    /* 换装期间被静默的台词:换完补播最新那句(用户要求:结束后继续重新播放对白) */
+    if (dressingPendingSay) {
+      const pend = dressingPendingSay;
+      dressingPendingSay = null;
+      say(pend.text, pend.opts);
+    }
   };
   const dressingFrame = () => {    // 官网 placeBubbles 同款:每帧跟随头部;对话在播即让位,结束自动回来
     if (!dressingOn) return;
@@ -439,6 +448,8 @@ async function boot() {
   let sayToken = 0;
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   async function say(text, opts = {}) {
+    /* 换装加载中一律静默(用户要求):不打字、不配音,台词记下来,换装结束补播最新的那句 */
+    if (dressingOn) { dressingPendingSay = { text, opts }; return; }
     const tok = ++sayToken;                  // 新台词随时可以顶掉旧的
     bubbleEl.hidden = false;
     bubbleEl.classList.remove('out', 'ask', 'pop');
@@ -1261,7 +1272,7 @@ async function boot() {
       const gen = dressingShow();
       const p = ctl.figure.setScheme(id, btn.dataset.outfit ? undefined : { fade: .4 });
       p.then(() => { dressingEnd(gen); applyAccent(ctl.figure); },
-             () => { dressingEnd(gen); say('衣服还没拿到，再点一次试试。', { hold: 4000 }); });
+             () => { dressingPendingSay = null; dressingEnd(gen); say('衣服还没拿到，再点一次试试。', { hold: 4000 }); });
       try { localStorage.setItem(DRESS_KEY, id); } catch {}
       const [curS, curO] = id.split('-');
       wardrobe.querySelectorAll('[data-dress]').forEach(b => b.classList.toggle('on',
@@ -1323,7 +1334,7 @@ async function boot() {
     const gen = dressingShow();
     const p = ctl.figure.setScheme(look, nextO === curO ? { fade: .4 } : undefined);
     p.then(() => { dressingEnd(gen); applyAccent(ctl.figure); },
-           () => { dressingEnd(gen); say('衣服还没拿到，再点一次试试。', { hold: 4000 }); });
+           () => { dressingPendingSay = null; dressingEnd(gen); say('衣服还没拿到，再点一次试试。', { hold: 4000 }); });
     try { localStorage.setItem(DRESS_KEY, look); } catch {}
     if (wardrobe) wardrobe.querySelectorAll('[data-dress]').forEach(b => b.classList.toggle('on',
       b.dataset.outfit ? b.dataset.outfit === nextO : b.dataset.dress === nextS));
