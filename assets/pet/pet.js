@@ -1578,8 +1578,8 @@ async function boot() {
     + '表情:开心、眨眼、喜欢、爱心眼、害羞、惊讶、生气、难过、伤心、犯困、思考、得意、嘟嘴、哼、担心、认真、慌张、害怕、期待、星星眼、大哭、疑惑\n'
     + '动作:点头、摇头、转圈、招手、鞠躬、发抖、扑腾、激动、跳舞、摇摆、小跳、跳起来、转身、张望、坐下、睡觉、晕\n'
     + '标记要贴合回复的情绪,比如:被夸→【害羞】哪、哪有啦…;被问难题→【认真】让我想想…;听到好消息→【期待, 小跳】真的吗!数据不说谎~。'
-    + '你还能帮主人操作网页,页面指令也写在【】标记里(导航类放回复最后,执行后页面会切换):打开rag(去看RAG项目复盘)、打开街机(BoomArcade页)、回主页、去项目、去技能、去关于、去顶部、去底部、换风格。'
-    + '比如用户说"帮我打开RAG界面"→【点头, 打开rag】这就带你去~;用户想看技能→【去技能】技能都在这屏~。用户戳了你一下时你会收到【touch】事件:用一两句话自然地回应这个互动即可。';
+    + '你还能帮主人操作网页,页面指令也写在【】标记里(导航类放回复最后;打开rag/打开街机/回主页执行后页面会切换,打开b站/山人则是新开标签页,本页不动):打开rag(去看RAG项目复盘)、打开街机(BoomArcade页)、打开b站(Koda的B站主页)、山人(朋友「山人」的作品集,全名山人4002)、回主页、去项目、去技能、去关于、去顶部、去底部、换风格。'
+    + '比如用户说"帮我打开RAG界面"→【点头, 打开rag】这就带你去~;用户想看技能→【去技能】技能都在这屏~;用户说"打开b站"→【开心, 打开b站】走啦走啦,来给主人捧个场~;用户提到山人→【期待, 打开山人】我朋友的作品集,超有意思的!用户戳了你一下时你会收到【touch】事件:用一两句话自然地回应这个互动即可。';
   const LLM_DEFAULT_URLS = Object.fromEntries(LLM_PROVIDERS.map(p => [p.id, p.url]));
   const LLM_DEFAULT_MODELS = Object.fromEntries(LLM_PROVIDERS.map(p => [p.id, p.model || '']));
   /* 跨页记忆:sessionStorage 按标签页存最近 16 条,翻页/刷新不断片(关标签才清) */
@@ -1678,6 +1678,8 @@ async function boot() {
     '走走': 'walk', '散步': 'walk', '跑': 'run', '跑起来': 'run', '招手': 'wave', '打招呼': 'wave',
     '鞠躬': 'bow', '发抖': 'shiver', '哆嗦': 'shiver', '扑腾': 'flap', '激动': 'flap', '跳舞': 'dance', '摇摆': 'dance',
     '打开rag': '@rag', '去rag': '@rag', 'rag页': '@rag', '打开街机': '@boom', '去街机': '@boom', '街机页': '@boom',
+    '打开b站': '@bili', '去b站': '@bili', 'b站主页': '@bili', '哔哩哔哩': '@bili',
+    '打开山人': '@shanren', '去山人': '@shanren', '山人主页': '@shanren', '山人': '@shanren',
     '回主页': '@home', '回首页': '@home', '去项目': '@projects', '去技能': '@skills', '去关于': '@about',
     '去顶部': '@top', '去底部': '@bottom', '换风格': '@theme',
     'happy': 'happy', 'wink': 'wink', 'love': 'love', 'shy': 'shy', 'surprised': 'surprised', 'angry': 'angry',
@@ -1761,10 +1763,15 @@ async function boot() {
     try { ctl.holdRoam(9); ctl.walkTo(target, true, 'open-' + page); await arrive(target, 3200); } catch { /* 被拎起等:照常点 */ }
     if (card) card.click(); else location.href = 'projects/' + page;
   };
+  /* 外链(白名单仅有的两个站,主人与朋友的页面):尽量新标签页;异步回复链里弹窗常被
+     拦截器拦下(window.open 返回 null),那时退回本页跳转,保证一定走得成 */
+  const openExternal = url => { const w = window.open(url, '_blank', 'noopener'); if (!w) location.href = url; };
   const PAGE_ACTS = {
     '@rag': () => openProject('rag.html'),
     '@boom': () => openProject('boom-arcade.html'),
     '@home': () => { location.href = (IN_PROJECTS ? '../' : '') + 'index.html'; },
+    '@bili': () => openExternal('https://space.bilibili.com/594675689'),
+    '@shanren': () => openExternal('https://shanren4002.github.io/'),
     '@projects': () => scrollToSec('projects', 'b-projects', 'overview'),
     '@skills': () => scrollToSec('skills', 'b-about', 'overview'),
     '@about': () => scrollToSec('about', 'b-about', 'overview'),
